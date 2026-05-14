@@ -1,0 +1,4 @@
+interface:
+  display_name: "Idea"
+  short_description: "Capture sudden ideas and incubate them into Markdown research plans."
+  default_prompt: "Capture this idea, save the raw note with timestamp, classify it, and create the next research plan."
