@@ -37,6 +37,10 @@ ENV/
 *.swo
 *~
 
+# Claude Code (per-machine local state; shared agent defs under .claude/agents/ may still be committed)
+.claude/settings.local.json
+.claude/projects/
+
 # Logs / temp
 *.log
 *.tmp
