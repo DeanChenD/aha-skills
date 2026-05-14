@@ -63,15 +63,15 @@
 - **触发**：`/idea`，或任何记录 / 回顾 / 推进 / 终止某个想法的请求。
 - **存储**：`./aha-workspace/idea/idea-md/<idea-id>.md`（每个想法一个文件，原文永不覆盖）。
 - **生命周期**：`inbox → researching → planning → completed`（外加 `paused` / `killed` 两个终止态）。
-- **CLI**：`idea/scripts/idea_md.py` 提供确定性的 `capture`、`update`、`scan` 子命令。
+- **CLI**：`skills/idea/scripts/idea_md.py` 提供确定性的 `capture`、`update`、`scan` 子命令。
 
-完整工作流、Markdown 结构和定时回顾模式见 [`idea/SKILL.md`](idea/SKILL.md)。
+完整工作流、Markdown 结构和定时回顾模式见 [`skills/idea/SKILL.md`](skills/idea/SKILL.md)。
 
 #### 快速上手
 
 ```bash
 # 捕捉一个想法
-python3 idea/scripts/idea_md.py capture \
+python3 skills/idea/scripts/idea_md.py capture \
   --text "Build a tiny idea inbox" \
   --source chat \
   --status researching \
@@ -79,10 +79,10 @@ python3 idea/scripts/idea_md.py capture \
   --tags "idea,research"
 
 # 列出陈旧或到期需回顾的想法
-python3 idea/scripts/idea_md.py scan --stale-days 7 --include-paused
+python3 skills/idea/scripts/idea_md.py scan --stale-days 7 --include-paused
 
 # 推进一个想法
-python3 idea/scripts/idea_md.py update \
+python3 skills/idea/scripts/idea_md.py update \
   ./aha-workspace/idea/idea-md/<file>.md \
   --status planning \
   --decision "Ready for a concrete plan." \
@@ -98,31 +98,31 @@ python3 idea/scripts/idea_md.py update \
   - 主记录：`./aha-workspace/dao/dao-md/<dao-id>.md`（原文永不覆盖；`## Refined` 滚动更新；`## Refinement Log` 归档历史版本）。
   - 探讨记录：`./aha-workspace/dao/sessions/<dao-id>-session-NNN.md`（主文件以 1-3 句 takeaway 链接到此）。
 - **动作**（不强加状态流转）：`capture`、`refine`、`discuss`、`scan`、`update`。
-- **CLI**：`dao/scripts/dao_md.py`。
+- **CLI**：`skills/dao/scripts/dao_md.py`。
 
-触发条件、Markdown 结构和定时回顾模式见 [`dao/SKILL.md`](dao/SKILL.md)。
+触发条件、Markdown 结构和定时回顾模式见 [`skills/dao/SKILL.md`](skills/dao/SKILL.md)。
 
 #### 快速上手
 
 ```bash
 # 捕捉一条原始感悟
-F=$(python3 dao/scripts/dao_md.py capture \
+F=$(python3 skills/dao/scripts/dao_md.py capture \
   --text "Fear is a compass, not a stop sign" \
   --category life --tags "courage,fear")
 
 # 提炼（自动把上一个版本归档进 ## Refinement Log）
-python3 dao/scripts/dao_md.py refine "$F" \
+python3 skills/dao/scripts/dao_md.py refine "$F" \
   --text "Fear marks the edge of where I should grow."
 
 # 记录一次哲学探讨
-python3 dao/scripts/dao_md.py discuss "$F" \
+python3 skills/dao/scripts/dao_md.py discuss "$F" \
   --topic "Fear vs aversion" \
   --conversation "user: ...\nagent: ..." \
   --takeaway "Distinguish fear (points at growth) from aversion (points at self-protection)."
 
 # 随机翻出 3 条旧感悟回顾（同时累加 review_count）
-python3 dao/scripts/dao_md.py scan --mode random --limit 3
-python3 dao/scripts/dao_md.py scan --mode least-reviewed --tag courage
+python3 skills/dao/scripts/dao_md.py scan --mode random --limit 3
+python3 skills/dao/scripts/dao_md.py scan --mode least-reviewed --tag courage
 ```
 
 ### `daily/` — 任务、日志、Check-in 与定期复盘
@@ -136,24 +136,24 @@ python3 dao/scripts/dao_md.py scan --mode least-reviewed --tag courage
   - Check-in 记录：`./aha-workspace/daily/check-ins/<task-id>-checkin-NNN.md`。
   - 复盘（agent 用 `Write` 写出）：`./aha-workspace/daily/reviews/review-<period-id>.md`。
 - **动作**：`task` / `update` / `checkin` / `log` / `scan`（不强加状态流转）。
-- **CLI**：`daily/scripts/daily_md.py`。
+- **CLI**：`skills/daily/scripts/daily_md.py`。
 
-过期任务的会话流程、check-in 模式和复盘骨架见 [`daily/SKILL.md`](daily/SKILL.md)。
+过期任务的会话流程、check-in 模式和复盘骨架见 [`skills/daily/SKILL.md`](skills/daily/SKILL.md)。
 
 #### 快速上手
 
 ```bash
 # 创建一个任务
-T=$(python3 daily/scripts/daily_md.py task \
+T=$(python3 skills/daily/scripts/daily_md.py task \
   --text "Write the v1 spec" --due "2030-01-15T18:00" \
   --priority high --tags "work,doc")
 
 # 推迟（必须给理由，记进 ## Postponement Log）
-python3 daily/scripts/daily_md.py update "$T" \
+python3 skills/daily/scripts/daily_md.py update "$T" \
   --due "2030-01-20T18:00" --postpone-reason "PRD review pending"
 
 # 记一次 check-in
-python3 daily/scripts/daily_md.py checkin "$T" \
+python3 skills/daily/scripts/daily_md.py checkin "$T" \
   --topic "Mid-build status" \
   --conversation "user: status?\nagent: 30% done." \
   --takeaway "Half a day to lock the data model." \
@@ -161,15 +161,15 @@ python3 daily/scripts/daily_md.py checkin "$T" \
   --next-step "Lock model tomorrow morning"
 
 # 追加一条当日日志
-python3 daily/scripts/daily_md.py log \
+python3 skills/daily/scripts/daily_md.py log \
   --text "Got distracted three times this afternoon" \
   --time "14:30" --title "Focus dip" --tags "work,mood"
 
 # 当前有什么 overdue
-python3 daily/scripts/daily_md.py scan --mode overdue
+python3 skills/daily/scripts/daily_md.py scan --mode overdue
 
 # 拉本周的任务 + 日志，准备复盘
-python3 daily/scripts/daily_md.py scan --mode period --period week --type all
+python3 skills/daily/scripts/daily_md.py scan --mode period --period week --type all
 ```
 
 ## 仓库结构
@@ -179,33 +179,34 @@ aha-skills/
 ├── README.md               # 英文 README
 ├── README.zh-CN.md         # 中文 README（本文件）
 ├── .gitignore
-├── idea/
-│   ├── SKILL.md            # Skill 定义（frontmatter + 工作流）
-│   ├── agents/
-│   │   └── openai.yaml     # OpenAI agent 接口元数据
-│   ├── references/         # skill 按需加载的参考资料
-│   ├── scripts/
-│   │   └── idea_md.py      # CLI：capture / update / scan
-│   └── tests/
-│       └── test_idea_md.py # idea_md.py 的 unittest 套件
-├── dao/
-│   ├── SKILL.md
-│   ├── agents/
-│   │   └── openai.yaml
-│   ├── references/
-│   ├── scripts/
-│   │   └── dao_md.py        # CLI：capture / refine / discuss / scan / update
-│   └── tests/
-│       └── test_dao_md.py
-└── daily/
-    ├── SKILL.md
-    ├── agents/
-    │   └── openai.yaml
-    ├── references/          # 5 个子工作流：task-capture / overdue-flow / checkin-flow / log-flow / review-flow
-    ├── scripts/
-    │   └── daily_md.py      # CLI：task / update / checkin / log / scan
-    └── tests/
-        └── test_daily_md.py
+└── skills/
+    ├── idea/
+    │   ├── SKILL.md            # Skill 定义（frontmatter + 工作流）
+    │   ├── agents/
+    │   │   └── openai.yaml     # OpenAI agent 接口元数据
+    │   ├── references/         # skill 按需加载的参考资料
+    │   ├── scripts/
+    │   │   └── idea_md.py      # CLI：capture / update / scan
+    │   └── tests/
+    │       └── test_idea_md.py # idea_md.py 的 unittest 套件
+    ├── dao/
+    │   ├── SKILL.md
+    │   ├── agents/
+    │   │   └── openai.yaml
+    │   ├── references/
+    │   ├── scripts/
+    │   │   └── dao_md.py        # CLI：capture / refine / discuss / scan / update
+    │   └── tests/
+    │       └── test_dao_md.py
+    └── daily/
+        ├── SKILL.md
+        ├── agents/
+        │   └── openai.yaml
+        ├── references/          # 5 个子工作流：task-capture / overdue-flow / checkin-flow / log-flow / review-flow
+        ├── scripts/
+        │   └── daily_md.py      # CLI：task / update / checkin / log / scan
+        └── tests/
+            └── test_daily_md.py
 ```
 
 ## 安装到 host
@@ -217,9 +218,9 @@ aha-skills/
 ## 跑测试
 
 ```bash
-python3 idea/tests/test_idea_md.py
-python3 dao/tests/test_dao_md.py
-python3 daily/tests/test_daily_md.py
+python3 skills/idea/tests/test_idea_md.py
+python3 skills/dao/tests/test_dao_md.py
+python3 skills/daily/tests/test_daily_md.py
 ```
 
 ## 通用约定
