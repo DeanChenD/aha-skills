@@ -1,6 +1,6 @@
 ---
 name: idea
-description: Capture sudden ideas, timestamp them, classify them, and incubate them into Markdown-based research plans. Use when the user invokes /idea or asks to record a sudden idea, maintain an idea inbox, turn an idea into a research task, create follow-up questions, review stale ideas, remind the user to continue, or decide whether an idea should become a plan, be paused, or be killed. Stores records as local .md files.
+description: Use when the user invokes /idea, records a sudden idea, asks to maintain an idea inbox, turn an idea into a research task, create follow-up questions, review stale ideas, remind the user to continue, or decide whether an idea should become a plan / be paused / be killed.
 ---
 
 # Idea

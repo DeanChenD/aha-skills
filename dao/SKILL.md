@@ -1,6 +1,6 @@
 ---
 name: dao
-description: Capture, refine, discuss and periodically revisit personal insights ("感悟" / 道) as Markdown files. Use when the user invokes /dao, says they "悟到 / 想通 / 感悟到了 / 想明白了" something, asks to refine an existing insight, wants to dive into a philosophical discussion of one, or asks to scan/review past insights ("翻翻以前的感悟" / "回顾一下"). Stores raw text verbatim plus a refined sediment, with full multi-turn discussion transcripts in a sessions/ subfolder.
+description: Use when the user invokes /dao, says they "悟到 / 想通 / 感悟到了 / 想明白了" something, asks to refine an existing insight ("再帮我提炼一下"), wants to dive into a philosophical discussion of one ("展开聊聊 / 和我探讨一下"), or asks to scan/review past insights ("翻翻以前的感悟" / "回顾一下").
 ---
 
 # Dao
