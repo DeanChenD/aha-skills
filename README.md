@@ -32,9 +32,15 @@ All runtime data lives under a shared `aha-workspace/` directory in the host's w
   │  idea/   │              │   dao/   │              │  daily/  │
   │ 向外行动 │              │ 向内领悟 │              │ 节奏维持 │
   └──────────┘              └──────────┘              └──────────┘
+        └─────────────────────────┬─────────────────────────┘
+                                  ▼
+                          ┌─ ─ ─ ─ ─ ─ ─┐
+                          │  reflect/   │   ← planned, see Future Skills
+                          │ 跨 skill 复盘 │
+                          └─ ─ ─ ─ ─ ─ ─┘
 ```
 
-Three peers, one shared workspace. Each skill owns a subdirectory under `aha-workspace/`; nothing crosses borders at runtime today.
+Three peers today, one shared workspace, with a fourth (`reflect`) reserved for cross-skill pattern mining. Each skill owns a subdirectory under `aha-workspace/`; nothing crosses borders at runtime today.
 
 ### When to use which skill
 
@@ -219,3 +225,20 @@ python3 daily/tests/test_daily_md.py
 - All paths resolve relative to the current working directory via `aha-workspace/`.
 - Skills should never write outside `aha-workspace/<skill>/` at runtime.
 - New skills follow the same shape: `SKILL.md`, optional `scripts/`, `tests/`, `references/`, `agents/`.
+
+## Future Skills (planned)
+
+### `reflect/` — Cross-skill weekly pattern miner
+
+Read across `idea` + `dao` + `daily` records over a time window and surface patterns the agent can discuss with the user — e.g. "本周 3 个 dao 都在讲'界限'", "2 个 overdue 都和'答应别人太快'有关", "一个反复出现的 tag 横跨任务、感悟和想法"。
+
+Intended scope of v0:
+
+- `aggregate --period <day|week|month>` — walk the 6 record dirs in `aha-workspace/`, output a structured TSV of records in range.
+- `tags --period ...` — tag frequency / co-occurrence across sources.
+- `difficulties --period ...` — extract `## Difficulty Log` entries from daily tasks.
+- `save --period ...` — write a reflection skeleton to `aha-workspace/reflect/reflections/reflect-<period-id>.md` for the agent to fill in.
+
+Pattern-level synthesis is the agent's (LLM) job; the CLI provides the deterministic data substrate. The folder shape mirrors the existing skills (`SKILL.md` + `scripts/` + `tests/` + `agents/` + `references/`).
+
+**Status**: design only — not implemented in v0.1. Tracked here so future contributors see the architectural seat already reserved (visible in the architecture diagram above as the dashed fourth peer).
