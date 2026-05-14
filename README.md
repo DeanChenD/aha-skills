@@ -75,6 +75,53 @@ python3 dao/scripts/dao_md.py scan --mode random --limit 3
 python3 dao/scripts/dao_md.py scan --mode least-reviewed --tag courage
 ```
 
+### `daily/` — Tasks, Daily Logs, Check-ins & Periodic Reviews
+
+Manage important todos with explicit due dates and postponements, log stage-by-stage progress and surfaced difficulties, capture per-day journal entries, and produce day/week/month reviews. The "节奏型" companion to `idea` (outward action) and `dao` (inward realization).
+
+- **Trigger**: `/daily`, "今天要做...", "加个待办", "今天没做完...", "想推迟到...", "聊聊 X 的进展", "记一笔", "今天感觉...", "看看这周", "周回顾".
+- **Storage**:
+  - Tasks: `./aha-workspace/daily/tasks/task-<id>.md` (status workflow + difficulty / postponement / check-in logs).
+  - Daily logs: `./aha-workspace/daily/logs/log-YYYY-MM-DD.md` (one file per day, multiple `## HH:MM — title` entries appended within).
+  - Check-in transcripts: `./aha-workspace/daily/check-ins/<task-id>-checkin-NNN.md`.
+  - Reviews (agent-written via `Write`): `./aha-workspace/daily/reviews/review-<period-id>.md`.
+- **Actions**: `task` / `update` / `checkin` / `log` / `scan` (no forced status workflow).
+- **CLI**: `daily/scripts/daily_md.py`.
+
+See [`daily/SKILL.md`](daily/SKILL.md) for the overdue-reminder conversation flow, check-in pattern, and review skeleton.
+
+#### Quick start
+
+```bash
+# Capture a task
+T=$(python3 daily/scripts/daily_md.py task \
+  --text "Write the v1 spec" --due "2030-01-15T18:00" \
+  --priority high --tags "work,doc")
+
+# Postpone with an explicit reason (logged to ## Postponement Log)
+python3 daily/scripts/daily_md.py update "$T" \
+  --due "2030-01-20T18:00" --postpone-reason "PRD review pending"
+
+# Record a check-in
+python3 daily/scripts/daily_md.py checkin "$T" \
+  --topic "Mid-build status" \
+  --conversation "user: status?\nagent: 30% done." \
+  --takeaway "Half a day to lock the data model." \
+  --difficulty "data model still fuzzy" \
+  --next-step "Lock model tomorrow morning"
+
+# Append a daily log entry
+python3 daily/scripts/daily_md.py log \
+  --text "Got distracted three times this afternoon" \
+  --time "14:30" --title "Focus dip" --tags "work,mood"
+
+# What's overdue right now?
+python3 daily/scripts/daily_md.py scan --mode overdue
+
+# Pull this week's tasks + log entries for a review
+python3 daily/scripts/daily_md.py scan --mode period --period week --type all
+```
+
 ## Repository layout
 
 ```
@@ -90,15 +137,24 @@ aha-skills/
 │   │   └── idea_md.py      # CLI: capture / update / scan
 │   └── tests/
 │       └── test_idea_md.py # unittest suite for idea_md.py
-└── dao/
+├── dao/
+│   ├── SKILL.md
+│   ├── agents/
+│   │   └── openai.yaml
+│   ├── references/
+│   ├── scripts/
+│   │   └── dao_md.py        # CLI: capture / refine / discuss / scan / update
+│   └── tests/
+│       └── test_dao_md.py
+└── daily/
     ├── SKILL.md
     ├── agents/
     │   └── openai.yaml
     ├── references/
     ├── scripts/
-    │   └── dao_md.py       # CLI: capture / refine / discuss / scan / update
+    │   └── daily_md.py      # CLI: task / update / checkin / log / scan
     └── tests/
-        └── test_dao_md.py
+        └── test_daily_md.py
 ```
 
 ## Installing a skill into a host
@@ -110,8 +166,9 @@ aha-skills/
 ## Running tests
 
 ```bash
-python3 -m unittest discover -s idea/tests -t idea
-python3 -m unittest discover -s dao/tests -t dao
+python3 idea/tests/test_idea_md.py
+python3 dao/tests/test_dao_md.py
+python3 daily/tests/test_daily_md.py
 ```
 
 ## Conventions

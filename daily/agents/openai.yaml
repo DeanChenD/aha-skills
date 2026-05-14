@@ -1,0 +1,4 @@
+interface:
+  display_name: "Daily"
+  short_description: "Manage tasks with due dates, log daily entries, run check-ins, and produce periodic reviews."
+  default_prompt: "Capture this as a task or a log entry, ask me what's missing (due date, priority), then tell me what's overdue right now."
