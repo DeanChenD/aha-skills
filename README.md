@@ -39,21 +39,66 @@ python3 idea/scripts/idea_md.py update \
   --bump-review
 ```
 
+### `dao/` — Insight Capture, Refinement & Review (感悟 / 道)
+
+Capture personal insights verbatim, polish them into a refined sediment, optionally explore them through multi-turn philosophical discussion, and periodically resurface old ones for review. Counterpart to `idea`: where `idea` is for outward-facing actions, `dao` is for inner-facing realizations.
+
+- **Trigger**: `/dao`, "我悟到了 / 想通了 / 感悟到 ...", "再帮我提炼一下", "展开聊聊", "翻翻以前的感悟".
+- **Storage**:
+  - Main records: `./aha-workspace/dao/dao-md/<dao-id>.md` (raw text never overwritten; `## Refined` rotated; `## Refinement Log` archives prior versions).
+  - Discussion transcripts: `./aha-workspace/dao/sessions/<dao-id>-session-NNN.md` (linked from main file with a 1-3 sentence takeaway).
+- **Actions** (no forced status workflow): `capture`, `refine`, `discuss`, `scan`, `update`.
+- **CLI**: `dao/scripts/dao_md.py`.
+
+See [`dao/SKILL.md`](dao/SKILL.md) for triggers, Markdown shape, and the scheduled-review pattern.
+
+#### Quick start
+
+```bash
+# Capture a raw insight
+F=$(python3 dao/scripts/dao_md.py capture \
+  --text "Fear is a compass, not a stop sign" \
+  --category life --tags "courage,fear")
+
+# Refine it (auto-archives the previous version into ## Refinement Log)
+python3 dao/scripts/dao_md.py refine "$F" \
+  --text "Fear marks the edge of where I should grow."
+
+# Log a philosophical discussion
+python3 dao/scripts/dao_md.py discuss "$F" \
+  --topic "Fear vs aversion" \
+  --conversation "user: ...\nagent: ..." \
+  --takeaway "Distinguish fear (points at growth) from aversion (points at self-protection)."
+
+# Resurface 3 random old daos for review (also bumps review_count)
+python3 dao/scripts/dao_md.py scan --mode random --limit 3
+python3 dao/scripts/dao_md.py scan --mode least-reviewed --tag courage
+```
+
 ## Repository layout
 
 ```
 aha-skills/
 ├── README.md
 ├── .gitignore
-└── idea/
-    ├── SKILL.md            # Skill definition (frontmatter + workflow)
+├── idea/
+│   ├── SKILL.md            # Skill definition (frontmatter + workflow)
+│   ├── agents/
+│   │   └── openai.yaml     # OpenAI agent interface metadata
+│   ├── references/         # Reference material the skill may load
+│   ├── scripts/
+│   │   └── idea_md.py      # CLI: capture / update / scan
+│   └── tests/
+│       └── test_idea_md.py # unittest suite for idea_md.py
+└── dao/
+    ├── SKILL.md
     ├── agents/
-    │   └── openai.yaml     # OpenAI agent interface metadata
-    ├── references/         # Reference material the skill may load
+    │   └── openai.yaml
+    ├── references/
     ├── scripts/
-    │   └── idea_md.py      # CLI: capture / update / scan
+    │   └── dao_md.py       # CLI: capture / refine / discuss / scan / update
     └── tests/
-        └── test_idea_md.py # unittest suite for idea_md.py
+        └── test_dao_md.py
 ```
 
 ## Installing a skill into a host
@@ -66,6 +111,7 @@ aha-skills/
 
 ```bash
 python3 -m unittest discover -s idea/tests -t idea
+python3 -m unittest discover -s dao/tests -t dao
 ```
 
 ## Conventions
