@@ -19,6 +19,33 @@ All runtime data lives under a shared `aha-workspace/` directory in the host's w
 3. **state mutation 走 deterministic CLI**。`*_md.py` 同时是 agent 的写入路径和测试边界，挡住 LLM 自由编辑时的格式漂移。
 4. **不强加 workflow**。`dao` 没有状态机，`daily` 不自动顺延 due —— agent 提建议，用户做决定。
 
+## Architecture
+
+```
+                    ┌─────────────────────────────────┐
+                    │       aha-workspace/            │  ← shared runtime root
+                    └─────────────────────────────────┘
+                       │           │           │
+        ┌──────────────┘           │           └──────────────┐
+        ▼                          ▼                          ▼
+  ┌──────────┐              ┌──────────┐              ┌──────────┐
+  │  idea/   │              │   dao/   │              │  daily/  │
+  │ 向外行动 │              │ 向内领悟 │              │ 节奏维持 │
+  └──────────┘              └──────────┘              └──────────┘
+```
+
+Three peers, one shared workspace. Each skill owns a subdirectory under `aha-workspace/`; nothing crosses borders at runtime today.
+
+### When to use which skill
+
+| 用户在说 | 用哪个 skill |
+|---|---|
+| 有 deadline 的待办 / 今天做了什么 / 周/月回顾 / overdue / postpone | `daily` |
+| 一个外部行动方向，需要孵化、研究、决策 / "我有个想法" / idea inbox | `idea` |
+| 一个内省式领悟、一句话顿悟、想再想想 / "我悟到了" / refine an insight | `dao` |
+
+When intent is ambiguous, prefer asking once over guessing — these three are deliberately distinct work modes, not interchangeable buckets.
+
 ## Skills
 
 ### `idea/` — Idea Inbox & Incubator
