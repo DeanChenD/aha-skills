@@ -4,6 +4,21 @@ A collection of lightweight, file-based skills for AI agents (Claude Code, Herme
 
 All runtime data lives under a shared `aha-workspace/` directory in the host's working directory. Each skill owns a sub-folder there (e.g. `aha-workspace/idea/`).
 
+## Design Philosophy
+
+`aha-skills` 不是一个工具集合，而是关于「如何把易逝的认知瞬间留下」的三个分工：
+
+- `idea` — 向外的行动直觉：捕捉 → 孵化 → 决策成行
+- `dao` — 向内的领悟：记下原话 → 提炼沉淀 → 必要时深谈
+- `daily` — 维持节奏：任务、日志、check-in、复盘
+
+四条贯穿三者的设计公约：
+
+1. **Markdown 是单一事实源**。Agent 和人读同一份 `.md`，不存在 agent 私有 state。
+2. **原文不可变**。`## Raw` 永远保留用户原话；提炼写在 `## Refined`，旧版进 `## Refinement Log`。这是用户认知演化的考古层，不是版本噪音。
+3. **state mutation 走 deterministic CLI**。`*_md.py` 同时是 agent 的写入路径和测试边界，挡住 LLM 自由编辑时的格式漂移。
+4. **不强加 workflow**。`dao` 没有状态机，`daily` 不自动顺延 due —— agent 提建议，用户做决定。
+
 ## Skills
 
 ### `idea/` — Idea Inbox & Incubator
