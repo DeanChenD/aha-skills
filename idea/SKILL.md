@@ -137,6 +137,16 @@ Use the idea skill. Scan ./aha-workspace/idea/idea-md for stale or due ideas. Fo
 
 When running in Hermes, install the skill under `~/.hermes/skills/idea` or configure `skills.external_dirs` to include the directory that contains this skill. Then create a cron job with the `idea` skill attached and `workdir` set to a stable parent directory; the Markdown records live in `<workdir>/aha-workspace/idea/idea-md/`.
 
+## Red Flags — STOP and re-read
+
+| 看到自己想 | 实际是 |
+|---|---|
+| "用户提了个 idea，我直接帮他改成更精炼的版本吧" | 不要改 `## Raw Idea`。在 `## Summary` 写精炼版。 |
+| "他没回答，那就当 paused 吧" | 不要替用户做 `paused` / `killed` 决定。明确提议、等回答。 |
+| "我问个开放问题让他想想" | 不问"你想做什么？"。给具体选项（continue / answer / pause / kill）。 |
+| "stale 5 天了我顺手 kill 了吧" | 不要 auto-kill。提议 + 等用户确认。 |
+| "用 Edit 直接改 idea 的 .md 比走 CLI 快" | 不要绕过 `idea_md.py`。直接 Edit 会丢失 `Decision Log` / `next_review_at` 的自动维护。 |
+
 ## Output Style
 
 After capturing or updating an idea, tell the user:

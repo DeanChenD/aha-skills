@@ -137,6 +137,16 @@ Use the dao skill. Run scan --mode least-reviewed --limit 1. If a record returns
 
 When running in Hermes, install the skill under `~/.hermes/skills/dao` or configure `skills.external_dirs` to include the directory that contains this skill. Then create a cron job with the `dao` skill attached and `workdir` set to a stable parent directory; the Markdown records live in `<workdir>/aha-workspace/dao/`.
 
+## Red Flags — STOP and re-read
+
+| 看到自己想 | 实际是 |
+|---|---|
+| "原话有错别字 / 口语，帮他改一下" | 永远不动 `## Raw 原始感悟`。要改提议 `refine`。 |
+| "discuss 完直接告诉用户结论就行" | discuss 必须产出 takeaway 并 append 到 `## Discussion`。无 takeaway = context leak。 |
+| "scan 出 5 条，一次性帮他过一遍" | 一次只 engage 一条。Review 是慢的。 |
+| "重新 refine 一版直接覆盖旧的" | 旧版本必须存到 `## Refinement Log`（CLI 自动处理；不要绕开它直接 Edit）。 |
+| "philosophical entry 我自己开个 discuss 算了" | discuss 在 chat 里多轮探讨之后再写。不要自动起话题。 |
+
 ## Output Style
 
 After capturing, refining, discussing, or scanning:

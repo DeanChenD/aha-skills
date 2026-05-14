@@ -231,6 +231,17 @@ Output rows are TSV:
 - `task\t<status>\t<due_at>\t<priority>\t<id>\t<path>\t<title>`
 - `log\t<date>\t<entry_count>\t-\t<id>\t<path>\t<entry_count> entries`
 
+## Red Flags — STOP and re-read
+
+| 看到自己想 | 实际是 |
+|---|---|
+| "overdue 了我顺手帮他延 3 天" | 永远不要 auto-postpone。先问 difficulty，再问目标 due。 |
+| "用户没说 due 我猜个明天" | 不要猜 due。明确问一次；他说没有就接受无 due 创建。 |
+| "一口气把 3 条 overdue 都处理完" | 一次只处理一条（oldest first），处理完问要不要下一条。 |
+| "check-in 聊完就行，不用写文件" | check-in 必须有 takeaway 并写回任务文件。无 takeaway = context leak。 |
+| "用户写了句感想，我帮他润色一下再 log" | 不要 polish log 文本。原文照录。 |
+| "用 Edit 直接改 .md 比走 CLI 快" | 不要绕过 `daily_md.py`。直接 Edit 会破坏 Postponement Log / Difficulty Log / counter 的归档逻辑。 |
+
 ## Output Style
 
 After every action, tell the user:
