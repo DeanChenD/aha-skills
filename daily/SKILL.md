@@ -119,102 +119,17 @@ created_at: ...
 ## Prompt 起点 / Conversation 对话原文 / Difficulties Surfaced / Takeaway 收获 / Next Step
 ```
 
-## Task Capture Workflow
+## Workflows
 
-When the user mentions a todo ("今天要做X" / "加个待办" / "明天前完成Y"):
+The five sub-flows live in `references/`. Read the matching file when the user's intent matches:
 
-1. Identify task text, optional due, optional priority, optional tags.
-2. If no due is mentioned, **ask once** for a target completion time. If the user says "没有 deadline / 持续做" — accept and capture without due.
-3. Run `task --text "<verbatim>" --due "<iso or date>" --priority <inferred> --tags "..."`.
-4. Tell the user: file path, "captured as pending due <due>", and offer one specific next step (start now / defer to a specific time).
+- **Task capture** ("今天要做X" / "加个待办" / "todo: ...") → `references/task-capture.md`
+- **Overdue reminder** ("有什么过期的没" / "what's overdue" / scheduled run) → `references/overdue-flow.md`
+- **Check-in** ("X 现在进展" / "聊聊卡点" / "let's talk about X") → `references/checkin-flow.md`
+- **Daily log** ("记一笔" / "刚刚..." / "log this") → `references/log-flow.md`
+- **Review** ("周回顾" / "月回顾" / "复盘" / "weekly review") → `references/review-flow.md`
 
-## Overdue Reminder Workflow (core)
-
-This is the user's primary safety net: when a task slips, the agent should surface it, ask for the difficulty, and help reschedule.
-
-Triggers:
-- The user asks "有什么过期的没?", "看看我有什么没做完的".
-- A scheduled run.
-- The agent notices in conversation that a task is now overdue.
-
-Procedure (handle **one task per turn**, oldest due first):
-
-1. `scan --mode overdue` to list overdue tasks.
-2. Pick the oldest. Tell the user: title + how long overdue.
-3. Ask exactly **one** question: "<title> 为什么没按时完成？遇到了什么困难？"
-4. Wait for the user's answer. Then choose ONE of:
-   - **They describe a blocker**:
-     - Run `update <file> --difficulty "<their answer>"` to record it.
-     - Then ask: "想推迟到什么时候？" — once they answer, `update <file> --due "<new>" --postpone-reason "<the same blocker, restated briefly>"`.
-   - **They say "其实做完了，忘了改"**: `update <file> --status done`.
-   - **They say "算了不做了" / "没必要"**: `update <file> --status dropped --note "<reason>"`.
-   - **They say "今天就做"**: do not modify; offer to set status to `in_progress` and check back later.
-5. If more overdue tasks remain, ask if they want to handle the next one — do not steamroll.
-
-Never modify due, status, or any record without a clear user answer. Do not auto-postpone.
-
-## Check-in Workflow
-
-When the user wants to talk through a task's progress ("X 现在进展..." / "聊聊 X 的卡点" / "想梳理一下 X"):
-
-1. Have the conversation in chat (multi-turn). Probe for: what changed, what's blocking, what's next.
-2. When it winds down, summarize in 1-3 sentences for the takeaway.
-3. Run `checkin <file> --topic "<theme>" --conversation "<full transcript>" --takeaway "<1-3 sentences>" [--difficulty "<surfaced blocker>"] [--next-step "<concrete next>"]`.
-4. The check-in transcript lands in `check-ins/`; the main task file gets a one-line summary linking to it. If `--difficulty` is provided, it's also appended to the task's `## Difficulty Log`.
-
-A check-in without a takeaway is a context leak — always summarize before writing.
-
-## Daily Log Workflow
-
-When the user wants to record a moment ("记一笔", "今天...", "刚刚..."), or shares a free-form reflection:
-
-1. Decide if it's a `log` or a `task`. If it has a target end-state and a deadline → `task`. Otherwise → `log`.
-2. Run `log --text "<verbatim>" [--time HH:MM] [--title "<short>"] [--tags "..."]`.
-3. The CLI:
-   - Creates `logs/log-<today>.md` if today's file doesn't exist.
-   - Appends `## HH:MM — <title>` with the text.
-   - Bumps `entry_count` and unions tags.
-4. Confirm: "Logged in <path>; today now has N entries."
-
-Don't auto-rewrite or "polish" the user's words for log entries — preserve their voice.
-
-## Review Workflow
-
-When the user asks for a review ("看看这周", "周回顾", "月回顾", "复盘"):
-
-1. Determine period: day / week / month, anchor date (default today, local).
-2. `scan --mode period --period <day|week|month> --date <anchor> --type all` — this returns both tasks (touched in range) and log entries (date in range), prefixed with `task\t` or `log\t`.
-3. Synthesize a summary in chat: completed tasks, active tasks, dropped tasks, key log themes, surfaced difficulties.
-4. Ask the user: "要把这次回顾存档吗？"
-5. If yes, use the `Write` tool to create `aha-workspace/daily/reviews/review-<period-id>.md` with this skeleton (filled in by you):
-
-```markdown
----
-review_id: review-2026-W20
-period: week
-range_start: 2026-05-11
-range_end: 2026-05-17
-created_at: <now ISO>
----
-
-# Week 2026-W20 Review
-
-## 范围
-2026-05-11 → 2026-05-17
-
-## 任务完成
-## 阶段进展
-## 困难与卡点
-## 模式与启示
-## 下阶段意图
-```
-
-`<period-id>`:
-- day → `YYYY-MM-DD`
-- week → `YYYY-Www` (ISO week, e.g. `2026-W20`)
-- month → `YYYY-MM`
-
-Reviews are valuable even when not archived — many user-agent review conversations are themselves the value. Don't push to write a file unless asked or the user explicitly wants archival.
+All sub-flows assume you have already read this SKILL.md (Storage, Markdown Shapes, Scan Modes). Handle one user intent per turn — don't pre-load a flow until it applies.
 
 ## Scan Modes (cheat sheet)
 
