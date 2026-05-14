@@ -15,6 +15,8 @@ Always store idea Markdown records in `./aha-workspace/idea/idea-md`, resolved r
 
 Keep one Markdown file per idea. Preserve the raw idea text exactly as given and never overwrite it. Update analysis, plan, status, and decision history in the same file.
 
+> **Why**: `## Raw Idea` 是用户思维的考古层。改它就丢失了想法演化的证据；后续的 `## Summary` / `## Plan` / `## Decision Log` 才是版本管理。
+
 Use `scripts/idea_md.py` for deterministic file creation and stale-idea scans (run from the workspace parent so `./aha-workspace/...` resolves correctly):
 
 ```bash

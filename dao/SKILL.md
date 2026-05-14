@@ -93,6 +93,8 @@ Trigger refine when the user says:
 
 Never refine the `## Raw` section. If the user wants to correct the original wording, suggest a refine instead.
 
+> **Why**: `## Raw 原始感悟` 是用户思维的考古层。改它就丢失了认知演化的证据；`## Refinement Log` 才是版本管理。
+
 ## Discuss Workflow
 
 Use `discuss` when the user wants to go deeper on an existing dao — typical signals: "展开聊聊", "我想深入想想这个", "和我探讨一下", or for clearly philosophical entries you may proactively offer to discuss.
