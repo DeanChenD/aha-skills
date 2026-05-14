@@ -6,18 +6,18 @@ All runtime data lives under a shared `aha-workspace/` directory in the host's w
 
 ## Design Philosophy
 
-`aha-skills` 不是一个工具集合，而是关于「如何把易逝的认知瞬间留下」的三个分工：
+`aha-skills` is not a toolkit. It's three roles for keeping fleeting moments of cognition from slipping away:
 
-- `idea` — 向外的行动直觉：捕捉 → 孵化 → 决策成行
-- `dao` — 向内的领悟：记下原话 → 提炼沉淀 → 必要时深谈
-- `daily` — 维持节奏：任务、日志、check-in、复盘
+- `idea` — outward action instinct: capture → incubate → decide
+- `dao` — inward realization (感悟 / 道): record verbatim → distill → discuss when needed
+- `daily` — keep the rhythm: tasks, logs, check-ins, reviews
 
-四条贯穿三者的设计公约：
+Four invariants that cut across all three:
 
-1. **Markdown 是单一事实源**。Agent 和人读同一份 `.md`，不存在 agent 私有 state。
-2. **原文不可变**。`## Raw` 永远保留用户原话；提炼写在 `## Refined`，旧版进 `## Refinement Log`。这是用户认知演化的考古层，不是版本噪音。
-3. **state mutation 走 deterministic CLI**。`*_md.py` 同时是 agent 的写入路径和测试边界，挡住 LLM 自由编辑时的格式漂移。
-4. **不强加 workflow**。`dao` 没有状态机，`daily` 不自动顺延 due —— agent 提建议，用户做决定。
+1. **Markdown is the single source of truth.** Agent and human read the same `.md` files. No private agent state.
+2. **Raw text is immutable.** `## Raw` always preserves the user's original wording; refinements live in `## Refined`, with prior versions archived to `## Refinement Log`. This is an archaeological record of how the user's thinking evolved — not version noise.
+3. **State mutations go through a deterministic CLI.** `*_md.py` is simultaneously the agent's write path and the testing boundary, blocking format drift from free-form LLM editing.
+4. **No forced workflow.** `dao` has no status machine; `daily` does not auto-postpone overdue tasks. The agent suggests; the user decides.
 
 ## Architecture
 
@@ -30,13 +30,13 @@ All runtime data lives under a shared `aha-workspace/` directory in the host's w
         ▼                          ▼                          ▼
   ┌──────────┐              ┌──────────┐              ┌──────────┐
   │  idea/   │              │   dao/   │              │  daily/  │
-  │ 向外行动 │              │ 向内领悟 │              │ 节奏维持 │
+  │  action  │              │ insight  │              │  rhythm  │
   └──────────┘              └──────────┘              └──────────┘
         └─────────────────────────┬─────────────────────────┘
                                   ▼
                           ┌─ ─ ─ ─ ─ ─ ─┐
                           │  reflect/   │   ← planned, see Future Skills
-                          │ 跨 skill 复盘 │
+                          │ cross-skill │
                           └─ ─ ─ ─ ─ ─ ─┘
 ```
 
@@ -44,11 +44,11 @@ Three peers today, one shared workspace, with a fourth (`reflect`) reserved for 
 
 ### When to use which skill
 
-| 用户在说 | 用哪个 skill |
+| When the user is talking about... | Use this skill |
 |---|---|
-| 有 deadline 的待办 / 今天做了什么 / 周/月回顾 / overdue / postpone | `daily` |
-| 一个外部行动方向，需要孵化、研究、决策 / "我有个想法" / idea inbox | `idea` |
-| 一个内省式领悟、一句话顿悟、想再想想 / "我悟到了" / refine an insight | `dao` |
+| a todo with a deadline / what they did today / a weekly or monthly review / something overdue / postponing | `daily` |
+| an outward direction that needs incubating, researching, deciding / "I have an idea" / their idea inbox | `idea` |
+| an inward realization, a one-line aha, wanting to sit with a thought / "I just realized" / refining an old insight | `dao` |
 
 When intent is ambiguous, prefer asking once over guessing — these three are deliberately distinct work modes, not interchangeable buckets.
 
@@ -91,7 +91,7 @@ python3 idea/scripts/idea_md.py update \
 
 Capture personal insights verbatim, polish them into a refined sediment, optionally explore them through multi-turn philosophical discussion, and periodically resurface old ones for review. Counterpart to `idea`: where `idea` is for outward-facing actions, `dao` is for inner-facing realizations.
 
-- **Trigger**: `/dao`, "我悟到了 / 想通了 / 感悟到 ...", "再帮我提炼一下", "展开聊聊", "翻翻以前的感悟".
+- **Trigger**: `/dao`; phrases like "I just realized", "I had an insight", "refine this further", "let's discuss this more deeply", "look back at past insights" (Chinese equivalents — "我悟到了 / 想通了", "再帮我提炼一下", "展开聊聊", "翻翻以前的感悟" — also recognized; full list in [`dao/SKILL.md`](dao/SKILL.md)).
 - **Storage**:
   - Main records: `./aha-workspace/dao/dao-md/<dao-id>.md` (raw text never overwritten; `## Refined` rotated; `## Refinement Log` archives prior versions).
   - Discussion transcripts: `./aha-workspace/dao/sessions/<dao-id>-session-NNN.md` (linked from main file with a 1-3 sentence takeaway).
@@ -125,9 +125,9 @@ python3 dao/scripts/dao_md.py scan --mode least-reviewed --tag courage
 
 ### `daily/` — Tasks, Daily Logs, Check-ins & Periodic Reviews
 
-Manage important todos with explicit due dates and postponements, log stage-by-stage progress and surfaced difficulties, capture per-day journal entries, and produce day/week/month reviews. The "节奏型" companion to `idea` (outward action) and `dao` (inward realization).
+Manage important todos with explicit due dates and postponements, log stage-by-stage progress and surfaced difficulties, capture per-day journal entries, and produce day/week/month reviews. The rhythm-keeping counterpart to `idea` (outward action) and `dao` (inward realization).
 
-- **Trigger**: `/daily`, "今天要做...", "加个待办", "今天没做完...", "想推迟到...", "聊聊 X 的进展", "记一笔", "今天感觉...", "看看这周", "周回顾".
+- **Trigger**: `/daily`; phrases like "I need to do X today", "add a todo", "didn't finish today", "want to postpone to ...", "let's check in on X", "log this", "how do I feel today", "review this week" (Chinese equivalents — "今天要做...", "加个待办", "今天没做完...", "想推迟到...", "聊聊 X 的进展", "记一笔", "看看这周", "周回顾" — also recognized; full list in [`daily/SKILL.md`](daily/SKILL.md)).
 - **Storage**:
   - Tasks: `./aha-workspace/daily/tasks/task-<id>.md` (status workflow + difficulty / postponement / check-in logs).
   - Daily logs: `./aha-workspace/daily/logs/log-YYYY-MM-DD.md` (one file per day, multiple `## HH:MM — title` entries appended within).
@@ -230,7 +230,7 @@ python3 daily/tests/test_daily_md.py
 
 ### `reflect/` — Cross-skill weekly pattern miner
 
-Read across `idea` + `dao` + `daily` records over a time window and surface patterns the agent can discuss with the user — e.g. "本周 3 个 dao 都在讲'界限'", "2 个 overdue 都和'答应别人太快'有关", "一个反复出现的 tag 横跨任务、感悟和想法"。
+Read across `idea` + `dao` + `daily` records over a time window and surface patterns the agent can discuss with the user — e.g. "three of this week's daos all touch on 'boundaries'", "two overdue tasks both came from 'agreeing too quickly'", "a single recurring tag spans tasks, insights, and ideas".
 
 Intended scope of v0:
 
