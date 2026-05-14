@@ -1,6 +1,7 @@
 ---
 name: idea
 description: Use when the user invokes /idea, says "我有个想法 / 想到一个 / 记一下这个点子 / 灵光一闪 / 帮我看看这个 idea / 有什么 idea 还没处理", records a sudden idea, asks to maintain an idea inbox, turn an idea into a research task, create follow-up questions, review stale ideas, remind the user to continue, or decide whether an idea should become a plan / be paused / be killed.
+version: 0.1.0
 ---
 
 # Idea
@@ -52,6 +53,7 @@ Each idea file should keep this structure:
 ```markdown
 ---
 id: idea-YYYYMMDD-HHMMSS-slug
+schema_version: 1
 status: researching
 created_at: YYYY-MM-DDTHH:MM:SS+08:00
 updated_at: YYYY-MM-DDTHH:MM:SS+08:00

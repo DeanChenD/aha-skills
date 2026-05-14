@@ -1,6 +1,7 @@
 ---
 name: dao
 description: Use when the user invokes /dao, says they "悟到 / 想通 / 感悟到了 / 想明白了" something or "I just realized / had an insight / want to write this thought down", asks to refine an existing insight ("再帮我提炼一下" / "refine this further"), wants to dive into a philosophical discussion of one ("展开聊聊 / 和我探讨一下" / "let's discuss this more deeply"), or asks to scan/review past insights ("翻翻以前的感悟" / "回顾一下" / "look back at past insights").
+version: 0.1.0
 ---
 
 # Dao
@@ -34,6 +35,7 @@ python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.m
 ```markdown
 ---
 id: dao-YYYYMMDD-HHMMSS-slug
+schema_version: 1
 created_at: YYYY-MM-DDTHH:MM:SS+08:00
 updated_at: YYYY-MM-DDTHH:MM:SS+08:00
 last_reviewed_at:
