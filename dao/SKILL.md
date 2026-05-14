@@ -1,6 +1,6 @@
 ---
 name: dao
-description: Use when the user invokes /dao, says they "悟到 / 想通 / 感悟到了 / 想明白了" something, asks to refine an existing insight ("再帮我提炼一下"), wants to dive into a philosophical discussion of one ("展开聊聊 / 和我探讨一下"), or asks to scan/review past insights ("翻翻以前的感悟" / "回顾一下").
+description: Use when the user invokes /dao, says they "悟到 / 想通 / 感悟到了 / 想明白了" something or "I just realized / had an insight / want to write this thought down", asks to refine an existing insight ("再帮我提炼一下" / "refine this further"), wants to dive into a philosophical discussion of one ("展开聊聊 / 和我探讨一下" / "let's discuss this more deeply"), or asks to scan/review past insights ("翻翻以前的感悟" / "回顾一下" / "look back at past insights").
 ---
 
 # Dao

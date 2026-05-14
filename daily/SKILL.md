@@ -1,6 +1,6 @@
 ---
 name: daily
-description: Use when the user invokes /daily, says "今天要做..." / "加个待办" / "今天没做完..." / "想推迟到..." / "这件事进展..." / "聊聊X的卡点" / "记一笔" / "今天感觉..." / "刚刚..." / "看看这周/今天的事" / "周回顾" / "月回顾" / "复盘", or asks to add a todo / log a difficulty / record a check-in / see what's overdue / produce a daily-weekly-monthly review.
+description: Use when the user invokes /daily, says "今天要做..." / "加个待办" / "今天没做完..." / "想推迟到..." / "这件事进展..." / "聊聊X的卡点" / "记一笔" / "今天感觉..." / "刚刚..." / "看看这周/今天的事" / "周回顾" / "月回顾" / "复盘" or "todo / due / overdue / postpone / weekly review / monthly review / log this / daily journal / let's check in on X", or asks to add a todo / log a difficulty / record a check-in / see what's overdue / produce a daily-weekly-monthly review.
 ---
 
 # Daily
