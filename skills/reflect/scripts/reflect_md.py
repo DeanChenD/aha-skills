@@ -1,0 +1,577 @@
+#!/usr/bin/env python3
+"""reflect — cross-skill weekly pattern miner.
+
+Walks the three sibling skills' workspaces (idea / dao / daily) and emits
+deterministic data slices that the agent can synthesize into reflections.
+
+Subcommands:
+  aggregate    list records in a period across all (or one) sources
+  tags         tag frequencies + co-occurrence pairs across sources
+  difficulties extract daily.task ## Difficulty Log lines whose date is in range
+  save         pre-fill a Markdown reflection skeleton with the snapshot above
+
+Internal note (intentional, v0.2): we re-implement a tiny frontmatter parser
+and period_range here rather than importing from the sibling CLIs. The user
+chose not to extract a common library yet; if you do that later, this is the
+first migration target.
+"""
+
+import argparse
+import json
+import re
+from datetime import date, datetime, time, timedelta
+from pathlib import Path
+
+
+WORKSPACE_DIR_NAME = "aha-workspace"
+WORKSPACE_ROOT = Path(WORKSPACE_DIR_NAME)
+
+IDEA_DIR_RELATIVE = WORKSPACE_ROOT / "idea" / "idea-md"
+DAO_DIR_RELATIVE = WORKSPACE_ROOT / "dao" / "dao-md"
+DAILY_TASKS_DIR_RELATIVE = WORKSPACE_ROOT / "daily" / "tasks"
+DAILY_LOGS_DIR_RELATIVE = WORKSPACE_ROOT / "daily" / "logs"
+REFLECT_DIR_RELATIVE = WORKSPACE_ROOT / "reflect" / "reflections"
+REFLECT_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/reflect/reflections"
+
+PERIODS = ("day", "week", "month")
+SOURCES = ("idea", "dao", "daily", "all")
+
+DIFFICULTY_LINE_RE = re.compile(
+    r"^- (\d{4}-\d{2}-\d{2})(?: \(check-in [^)]+\))?: (.+)$"
+)
+
+
+def local_now():
+    return datetime.now().astimezone()
+
+
+def ensure_dir(path):
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve(rel):
+    return (Path.cwd() / rel).resolve()
+
+
+def split_frontmatter(text):
+    if not text.startswith("---\n"):
+        return [], text
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return [], text
+    return text[4:end].splitlines(), text[end + len("\n---\n"):]
+
+
+def parse_frontmatter(path):
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None, None
+    lines, body = split_frontmatter(text)
+    if not lines:
+        return None, None
+    data = {}
+    for line in lines:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        data[key.strip()] = value.strip()
+    return data, body
+
+
+def parse_tags(value):
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except (ValueError, json.JSONDecodeError):
+        return []
+    if isinstance(parsed, list):
+        return [str(item) for item in parsed]
+    return []
+
+
+def parse_dt(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.astimezone()
+    return parsed
+
+
+def parse_date_str(value):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def period_range(period, anchor):
+    """Return (start_date, end_date) inclusive, in local-date space."""
+    if period == "day":
+        return anchor, anchor
+    if period == "week":
+        weekday = anchor.isoweekday()  # Monday=1 .. Sunday=7
+        monday = anchor - timedelta(days=weekday - 1)
+        sunday = monday + timedelta(days=6)
+        return monday, sunday
+    if period == "month":
+        first = anchor.replace(day=1)
+        if first.month == 12:
+            next_first = first.replace(year=first.year + 1, month=1)
+        else:
+            next_first = first.replace(month=first.month + 1)
+        last = next_first - timedelta(days=1)
+        return first, last
+    raise SystemExit(f"Unknown period: {period}")
+
+
+def period_id(period, start, end):
+    """Match daily.review naming: YYYY-MM-DD / YYYY-Www / YYYY-MM."""
+    if period == "day":
+        return start.isoformat()
+    if period == "week":
+        iso_year, iso_week, _ = start.isocalendar()
+        return f"{iso_year}-W{iso_week:02d}"
+    if period == "month":
+        return start.strftime("%Y-%m")
+    raise SystemExit(f"Unknown period: {period}")
+
+
+def title_from_body(body):
+    if not body:
+        return ""
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+    return ""
+
+
+def in_range(target_date, start, end):
+    return target_date is not None and start <= target_date <= end
+
+
+def _record_date_for_range(meta):
+    """Date used for inclusion test: prefer updated_at, fall back to created_at,
+    then `date` (daily logs)."""
+    for key in ("updated_at", "created_at"):
+        dt = parse_dt(meta.get(key))
+        if dt is not None:
+            return dt.date()
+    plain = parse_date_str(meta.get("date", ""))
+    if plain is not None:
+        return plain
+    return None
+
+
+def load_records(source, start, end):
+    """Yield (source_label, sub_type, meta, body, path) for records in range."""
+    out = []
+    if source in ("idea", "all"):
+        root = _resolve(IDEA_DIR_RELATIVE)
+        if root.is_dir():
+            for path in sorted(root.rglob("*.md")):
+                meta, body = parse_frontmatter(path)
+                if meta is None:
+                    continue
+                if not in_range(_record_date_for_range(meta), start, end):
+                    continue
+                out.append(("idea", "idea", meta, body, path))
+    if source in ("dao", "all"):
+        root = _resolve(DAO_DIR_RELATIVE)
+        if root.is_dir():
+            for path in sorted(root.rglob("*.md")):
+                meta, body = parse_frontmatter(path)
+                if meta is None:
+                    continue
+                if not in_range(_record_date_for_range(meta), start, end):
+                    continue
+                out.append(("dao", "dao", meta, body, path))
+    if source in ("daily", "all"):
+        root = _resolve(DAILY_TASKS_DIR_RELATIVE)
+        if root.is_dir():
+            for path in sorted(root.rglob("*.md")):
+                meta, body = parse_frontmatter(path)
+                if meta is None:
+                    continue
+                if meta.get("type") and meta.get("type") != "task":
+                    continue
+                if not in_range(_record_date_for_range(meta), start, end):
+                    continue
+                out.append(("daily.task", "task", meta, body, path))
+        root = _resolve(DAILY_LOGS_DIR_RELATIVE)
+        if root.is_dir():
+            for path in sorted(root.rglob("*.md")):
+                meta, body = parse_frontmatter(path)
+                if meta is None:
+                    continue
+                if meta.get("type") and meta.get("type") != "log":
+                    continue
+                log_date = parse_date_str(meta.get("date", ""))
+                if not in_range(log_date, start, end):
+                    continue
+                out.append(("daily.log", "log", meta, body, path))
+    return out
+
+
+def _resolve_period(args):
+    anchor = parse_date_str(args.date) if args.date else local_now().date()
+    if anchor is None:
+        raise SystemExit(f"Invalid --date: {args.date}")
+    start, end = period_range(args.period, anchor)
+    return start, end
+
+
+def aggregate(args):
+    start, end = _resolve_period(args)
+    records = load_records(args.source, start, end)
+    for source, sub_type, meta, body, path in records:
+        if source == "idea":
+            status = meta.get("status", "")
+            date_field = meta.get("updated_at", "")
+        elif source == "dao":
+            status = "-"
+            date_field = meta.get("updated_at", "")
+        elif source == "daily.task":
+            status = meta.get("status", "")
+            date_field = meta.get("due_at", "") or meta.get("updated_at", "")
+        else:  # daily.log
+            status = "-"
+            date_field = meta.get("date", "")
+        title = title_from_body(body)
+        tags = parse_tags(meta.get("tags", ""))
+        print("\t".join([
+            source,
+            sub_type,
+            status or "-",
+            date_field or "-",
+            meta.get("id", "") or f"log-{meta.get('date', '')}",
+            str(path),
+            title,
+            ",".join(tags),
+        ]))
+
+
+def _records_with_tags(records):
+    out = []
+    for source, _sub_type, meta, _body, _path in records:
+        tags = parse_tags(meta.get("tags", ""))
+        if tags:
+            out.append((source, tags))
+    return out
+
+
+def tags(args):
+    start, end = _resolve_period(args)
+    records = load_records(args.source, start, end)
+    tagged = _records_with_tags(records)
+
+    freq = {}
+    sources_for_tag = {}
+    for source, ts in tagged:
+        for t in ts:
+            freq[t] = freq.get(t, 0) + 1
+            sources_for_tag.setdefault(t, set()).add(source)
+
+    co_pairs = {}
+    sources_for_pair = {}
+    for source, ts in tagged:
+        unique = sorted(set(ts))
+        for i in range(len(unique)):
+            for j in range(i + 1, len(unique)):
+                pair = (unique[i], unique[j])
+                co_pairs[pair] = co_pairs.get(pair, 0) + 1
+                sources_for_pair.setdefault(pair, set()).add(source)
+
+    freq_lines = sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))
+    for tag, count in freq_lines:
+        print(f"{tag}\t{count}\t{','.join(sorted(sources_for_tag[tag]))}")
+
+    pair_rows = [
+        (pair, count) for pair, count in co_pairs.items() if count >= args.min_count
+    ]
+    pair_rows.sort(key=lambda kv: (-kv[1], kv[0]))
+    if pair_rows:
+        print()
+        for (a, b), count in pair_rows:
+            print(f"{a}\t{b}\t{count}\t{','.join(sorted(sources_for_pair[(a, b)]))}")
+
+
+def difficulties(args):
+    start, end = _resolve_period(args)
+    root = _resolve(DAILY_TASKS_DIR_RELATIVE)
+    if not root.is_dir():
+        return
+    for path in sorted(root.rglob("*.md")):
+        meta, body = parse_frontmatter(path)
+        if meta is None:
+            continue
+        if meta.get("type") and meta.get("type") != "task":
+            continue
+        if not body:
+            continue
+        section = _read_section(body, "Difficulty Log 困难记录")
+        if not section:
+            continue
+        title = title_from_body(body)
+        for raw_line in section.splitlines():
+            line = raw_line.strip()
+            match = DIFFICULTY_LINE_RE.match(line)
+            if not match:
+                continue
+            d = parse_date_str(match.group(1))
+            if not in_range(d, start, end):
+                continue
+            text = match.group(2).strip()
+            print("\t".join([
+                d.isoformat(),
+                meta.get("id", ""),
+                str(path),
+                title,
+                text,
+            ]))
+
+
+def _read_section(body, heading):
+    marker = f"## {heading}"
+    pos = body.find(marker)
+    if pos == -1:
+        return ""
+    start = pos + len(marker)
+    next_pos = body.find("\n## ", start)
+    end = len(body) if next_pos == -1 else next_pos
+    return body[start:end].strip("\n").strip()
+
+
+def _unique_reflect_path(root, base_id):
+    candidate_id = base_id
+    candidate_path = root / f"{candidate_id}.md"
+    counter = 2
+    while candidate_path.exists():
+        candidate_id = f"{base_id}-{counter}"
+        candidate_path = root / f"{candidate_id}.md"
+        counter += 1
+    return candidate_id, candidate_path
+
+
+def _render_snapshot(records, args, start, end):
+    lines = []
+    by_source = {"idea": [], "dao": [], "daily.task": [], "daily.log": []}
+    for rec in records:
+        source = rec[0]
+        if source in by_source:
+            by_source[source].append(rec)
+
+    # idea
+    lines.append(f"### idea ({len(by_source['idea'])})")
+    if by_source["idea"]:
+        for _, _, meta, body, _ in by_source["idea"]:
+            tags = parse_tags(meta.get("tags", ""))
+            tag_str = ", ".join(tags) if tags else "-"
+            lines.append(
+                f"- {meta.get('status', '?'):<11} | tags: [{tag_str}] | "
+                f"{meta.get('id', '')} — {title_from_body(body)}"
+            )
+    else:
+        lines.append("- (none in range)")
+    lines.append("")
+
+    # dao
+    lines.append(f"### dao ({len(by_source['dao'])})")
+    if by_source["dao"]:
+        for _, _, meta, body, _ in by_source["dao"]:
+            updated = meta.get("updated_at", "")[:10] or "?"
+            tags = parse_tags(meta.get("tags", ""))
+            tag_str = ", ".join(tags) if tags else "-"
+            lines.append(
+                f"- {updated} | tags: [{tag_str}] | "
+                f"{meta.get('id', '')} — {title_from_body(body)}"
+            )
+    else:
+        lines.append("- (none in range)")
+    lines.append("")
+
+    # daily.tasks
+    tasks_in = by_source["daily.task"]
+    done_count = sum(1 for _, _, m, _, _ in tasks_in if m.get("status") == "done")
+    lines.append(f"### daily.tasks ({len(tasks_in)} touched, {done_count} done)")
+    if tasks_in:
+        for _, _, meta, body, _ in tasks_in:
+            due = meta.get("due_at", "")[:10] or "-"
+            lines.append(
+                f"- {meta.get('status', '?'):<11} | due {due} | "
+                f"{meta.get('id', '')} — {title_from_body(body)}"
+            )
+    else:
+        lines.append("- (none in range)")
+    lines.append("")
+
+    # daily.logs
+    logs_in = by_source["daily.log"]
+    lines.append(f"### daily.logs ({len(logs_in)})")
+    if logs_in:
+        for _, _, meta, _body, _ in logs_in:
+            tags = parse_tags(meta.get("tags", ""))
+            tag_str = ", ".join(tags) if tags else "-"
+            lines.append(
+                f"- {meta.get('date', '?')} | {meta.get('entry_count', '0')} entries "
+                f"| tags: [{tag_str}]"
+            )
+    else:
+        lines.append("- (none in range)")
+    lines.append("")
+
+    # difficulties (re-walk; cheap)
+    diffs = _collect_difficulties(start, end)
+    lines.append(f"### daily.difficulties ({len(diffs)})")
+    if diffs:
+        for d, task_id, _path, _title, text in diffs:
+            lines.append(f"- {d.isoformat()} ({task_id}): {text}")
+    else:
+        lines.append("- (none in range)")
+
+    return "\n".join(lines), diffs
+
+
+def _collect_difficulties(start, end):
+    out = []
+    root = _resolve(DAILY_TASKS_DIR_RELATIVE)
+    if not root.is_dir():
+        return out
+    for path in sorted(root.rglob("*.md")):
+        meta, body = parse_frontmatter(path)
+        if meta is None or not body:
+            continue
+        if meta.get("type") and meta.get("type") != "task":
+            continue
+        section = _read_section(body, "Difficulty Log 困难记录")
+        if not section:
+            continue
+        title = title_from_body(body)
+        for raw in section.splitlines():
+            match = DIFFICULTY_LINE_RE.match(raw.strip())
+            if not match:
+                continue
+            d = parse_date_str(match.group(1))
+            if not in_range(d, start, end):
+                continue
+            out.append((d, meta.get("id", ""), path, title, match.group(2).strip()))
+    return out
+
+
+def _render_tag_summary(records):
+    lines = []
+    tagged = _records_with_tags(records)
+    freq = {}
+    sources_for_tag = {}
+    for source, ts in tagged:
+        for t in ts:
+            freq[t] = freq.get(t, 0) + 1
+            sources_for_tag.setdefault(t, set()).add(source)
+    if not freq:
+        return "- (no tags in range)"
+    for tag, count in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0])):
+        sources_str = ", ".join(sorted(sources_for_tag[tag]))
+        lines.append(f"- {tag}: {count} ({sources_str})")
+    return "\n".join(lines)
+
+
+def save(args):
+    start, end = _resolve_period(args)
+    pid = period_id(args.period, start, end)
+
+    root = _resolve(REFLECT_DIR_RELATIVE)
+    ensure_dir(root)
+    reflect_id, path = _unique_reflect_path(root, f"reflect-{pid}")
+
+    records = load_records("all", start, end)
+    snapshot_md, _diffs = _render_snapshot(records, args, start, end)
+    tag_summary = _render_tag_summary(records)
+
+    now = local_now()
+    body = f"""---
+reflect_id: {reflect_id}
+schema_version: 1
+period: {args.period}
+range_start: {start.isoformat()}
+range_end: {end.isoformat()}
+created_at: {now.isoformat(timespec="seconds")}
+sources: [idea, dao, daily]
+---
+
+# Reflect: {pid}
+
+## 范围
+
+{start.isoformat()} → {end.isoformat()}
+
+## Source Snapshot
+
+{snapshot_md}
+
+## Tags Across Sources
+
+{tag_summary}
+
+## 模式与启示
+
+<agent fills: 3-7 patterns observed across the snapshot above. Look for tag overlap, recurring difficulty themes, ideas-that-touch-realizations.>
+
+## 下阶段意图
+
+<agent fills: 1-3 concrete intents for the next period — not goals, intents.>
+"""
+    path.write_text(body, encoding="utf-8")
+    print(path)
+
+
+def _add_period_args(p):
+    p.add_argument("--period", choices=list(PERIODS), required=True)
+    p.add_argument("--date", help="Anchor date YYYY-MM-DD (default: today, local).")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=(
+            "reflect — cross-skill aggregation over aha-workspace/. "
+            f"Reflections land in {REFLECT_DIR_DISPLAY}."
+        )
+    )
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p_agg = sub.add_parser("aggregate", help="List records in a period across sources.")
+    _add_period_args(p_agg)
+    p_agg.add_argument("--source", choices=list(SOURCES), default="all")
+    p_agg.set_defaults(func=aggregate)
+
+    p_tags = sub.add_parser("tags", help="Tag frequencies + co-occurrence.")
+    _add_period_args(p_tags)
+    p_tags.add_argument("--source", choices=list(SOURCES), default="all")
+    p_tags.add_argument("--min-count", type=int, default=2,
+                        help="Minimum co-occurrence count to report (default 2).")
+    p_tags.set_defaults(func=tags)
+
+    p_diff = sub.add_parser("difficulties", help="Extract daily task difficulty log lines in range.")
+    _add_period_args(p_diff)
+    p_diff.set_defaults(func=difficulties)
+
+    p_save = sub.add_parser(
+        "save",
+        help="Write a reflection skeleton pre-filled with cross-source snapshot.",
+    )
+    _add_period_args(p_save)
+    p_save.set_defaults(func=save)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

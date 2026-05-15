@@ -8,13 +8,14 @@
 
 ## 设计哲学
 
-`aha-skills` 不是一个工具集合，而是关于「如何把易逝的认知瞬间留下」的三个分工：
+`aha-skills` 不是一个工具集合，而是关于「如何把易逝的认知瞬间留下」的四个分工：
 
 - `idea` — 向外的行动直觉：捕捉 → 孵化 → 决策成行
 - `dao` — 向内的领悟：记下原话 → 提炼沉淀 → 必要时深谈
 - `daily` — 维持节奏：任务、日志、check-in、复盘
+- `reflect` — 跨 skill 的模式挖掘：在一个时间窗口内跨着读 idea + dao + daily，surface 出共现的 tag、反复出现的困难、跨源的主题
 
-四条贯穿三者的设计公约：
+四条贯穿其上的设计公约：
 
 1. **Markdown 是单一事实源**。Agent 和人读同一份 `.md`，不存在 agent 私有 state。
 2. **原文不可变**。`## Raw` 永远保留用户原话；提炼写在 `## Refined`，旧版进 `## Refinement Log`。这是用户认知演化的考古层，不是版本噪音。
@@ -36,13 +37,13 @@
   └──────────┘              └──────────┘              └──────────┘
         └─────────────────────────┬─────────────────────────┘
                                   ▼
-                          ┌─ ─ ─ ─ ─ ─ ─┐
-                          │  reflect/   │   ← 规划中，详见 “未来 skill”
-                          │ 跨 skill 复盘 │
-                          └─ ─ ─ ─ ─ ─ ─┘
+                          ┌─────────────┐
+                          │  reflect/   │   ← 跨 skill 模式挖掘
+                          │ 跨 skill 复盘 │     只读上面三个的数据
+                          └─────────────┘
 ```
 
-当前三个 skill 是平等的同辈，共享一个 workspace；预留了第四个 `reflect`，用于跨 skill 的模式挖掘。每个 skill 各自占用 `aha-workspace/` 下的一个子目录；当前不做任何跨边界的运行时操作。
+三个 skill 各自管理自己的写入面；第四个 `reflect` 在它们之上，跨源做模式挖掘。每个 skill 占用 `aha-workspace/` 下的一个子目录；只有 `reflect` 在运行时跨目录读，且仅做只读。
 
 ### 该用哪个 skill
 
@@ -51,8 +52,9 @@
 | 有 deadline 的待办 / 今天做了什么 / 周/月回顾 / overdue / postpone | `daily` |
 | 一个外部行动方向，需要孵化、研究、决策 / "我有个想法" / idea inbox | `idea` |
 | 一个内省式领悟、一句话顿悟、想再想想 / "我悟到了" / refine an insight | `dao` |
+| 跨着看 idea + dao + daily 在一段时间内的共同 tag / 反复的困难 / 跨源主题 | `reflect` |
 
-意图模糊时，宁可问一句也别猜——这三个是刻意区分的工作模式，不是可互换的桶。
+意图模糊时，宁可问一句也别猜——这是刻意区分的工作模式，不是可互换的桶。**单源**的回顾（"看看本周的任务"）留在那个 skill 里；只有显式跨源的综合才用 `reflect`。
 
 ## 各 Skill 介绍
 
@@ -172,6 +174,33 @@ python3 skills/daily/scripts/daily_md.py scan --mode overdue
 python3 skills/daily/scripts/daily_md.py scan --mode period --period week --type all
 ```
 
+### `reflect/` — 跨 skill 的周维度模式挖掘
+
+在一个时间窗口内跨 `idea` + `dao` + `daily` 读取所有记录，surface 出可供讨论的模式——比如「本周 3 个 dao 都在讲『界限』」「2 个 overdue 都来自『答应别人太快』」「一个反复出现的 tag 横跨任务、感悟和想法」。位于其他三个之上；只读。
+
+- **触发**：`/reflect`、「跨着想想」「跨 skill 复盘一下」「这周看下整体」「最近三周有什么 pattern」（完整短语清单见 [`skills/reflect/SKILL.md`](skills/reflect/SKILL.md)）。
+- **存储**：`./aha-workspace/reflect/reflections/reflect-<period-id>.md`（每次 `save` 写一个新文件，**永不覆盖**）。
+- **动作**：`aggregate` / `tags` / `difficulties` / `save`（reflect 自身不捕获任何新内容）。
+- **CLI**：`skills/reflect/scripts/reflect_md.py`。
+
+`save` 会用 CLI 把跨源数据切片预先填进 reflection 文件（idea / dao / daily.tasks / daily.logs / daily.difficulties + tag 词频）。`## 模式与启示` 和 `## 下阶段意图` 留空，由 agent 与用户在实际对话之后共同填写——不可由 LLM 自动产出。
+
+#### 快速上手
+
+```bash
+# 本周跨三个源
+python3 skills/reflect/scripts/reflect_md.py aggregate --period week
+python3 skills/reflect/scripts/reflect_md.py tags --period week --min-count 2
+python3 skills/reflect/scripts/reflect_md.py difficulties --period week
+
+# 与用户讨论之后归档反思文件
+python3 skills/reflect/scripts/reflect_md.py save --period week
+# → ./aha-workspace/reflect/reflections/reflect-2026-W20.md
+
+# 锚定到指定日期（比如上周）
+python3 skills/reflect/scripts/reflect_md.py save --period week --date 2026-05-07
+```
+
 ## 仓库结构
 
 ```
@@ -194,13 +223,20 @@ aha-skills/
     │   │   └── dao_md.py        # CLI：capture / refine / discuss / scan / update
     │   └── tests/
     │       └── test_dao_md.py
-    └── daily/
+    ├── daily/
+    │   ├── SKILL.md
+    │   ├── references/          # 5 个子工作流：task-capture / overdue-flow / checkin-flow / log-flow / review-flow
+    │   ├── scripts/
+    │   │   └── daily_md.py      # CLI：task / update / checkin / log / scan
+    │   └── tests/
+    │       └── test_daily_md.py
+    └── reflect/
         ├── SKILL.md
-        ├── references/          # 5 个子工作流：task-capture / overdue-flow / checkin-flow / log-flow / review-flow
+        ├── references/
         ├── scripts/
-        │   └── daily_md.py      # CLI：task / update / checkin / log / scan
+        │   └── reflect_md.py    # CLI：aggregate / tags / difficulties / save
         └── tests/
-            └── test_daily_md.py
+            └── test_reflect_md.py
 ```
 
 ## 安装到 host
@@ -214,6 +250,7 @@ aha-skills/
 python3 skills/idea/tests/test_idea_md.py
 python3 skills/dao/tests/test_dao_md.py
 python3 skills/daily/tests/test_daily_md.py
+python3 skills/reflect/tests/test_reflect_md.py
 ```
 
 ## 通用约定
@@ -223,19 +260,3 @@ python3 skills/daily/tests/test_daily_md.py
 - Skill 在运行时永远不要写到 `aha-workspace/<skill>/` 之外。
 - 新增 skill 沿用同款骨架：`SKILL.md`，可选 `scripts/`、`tests/`、`references/`。
 
-## 未来 Skill（规划中）
-
-### `reflect/` — 跨 skill 的周维度模式挖掘
-
-在一个时间窗口内，跨 `idea` + `dao` + `daily` 读取所有记录，把可供讨论的模式 surface 出来——比如 "本周 3 个 dao 都在讲'界限'"、"2 个 overdue 都和'答应别人太快'有关"、"一个反复出现的 tag 横跨任务、感悟和想法"。
-
-v0 拟定范围：
-
-- `aggregate --period <day|week|month>` —— 遍历 `aha-workspace/` 下 6 个记录目录，输出范围内记录的结构化 TSV。
-- `tags --period ...` —— 跨来源的 tag 词频 / 共现统计。
-- `difficulties --period ...` —— 抽取 daily 任务的 `## Difficulty Log` 条目。
-- `save --period ...` —— 在 `aha-workspace/reflect/reflections/reflect-<period-id>.md` 写一个反思骨架，由 agent 后续填充。
-
-模式级别的综合解读交给 agent (LLM) 完成；CLI 只提供确定性的数据底层。目录结构与现有 skill 对齐（`SKILL.md` + `scripts/` + `tests/` + `agents/` + `references/`）。
-
-**状态**：仅完成设计——v0.1 未实现。在此记录是为了让未来贡献者一眼看到这个架构席位已经预留（架构图中的虚线第四位 peer 即代表它）。

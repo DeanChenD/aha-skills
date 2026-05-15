@@ -6,13 +6,14 @@ All runtime data lives under a shared `aha-workspace/` directory in the host's w
 
 ## Design Philosophy
 
-`aha-skills` is not a toolkit. It's three roles for keeping fleeting moments of cognition from slipping away:
+`aha-skills` is not a toolkit. It's four roles for keeping fleeting moments of cognition from slipping away:
 
 - `idea` — outward action instinct: capture → incubate → decide
 - `dao` — inward realization (感悟 / 道): record verbatim → distill → discuss when needed
 - `daily` — keep the rhythm: tasks, logs, check-ins, reviews
+- `reflect` — cross-skill pattern miner: read across the three above over a period; surface tag overlap, recurring difficulties, and themes that span sources
 
-Four invariants that cut across all three:
+Four invariants that cut across all of them:
 
 1. **Markdown is the single source of truth.** Agent and human read the same `.md` files. No private agent state.
 2. **Raw text is immutable.** `## Raw` always preserves the user's original wording; refinements live in `## Refined`, with prior versions archived to `## Refinement Log`. This is an archaeological record of how the user's thinking evolved — not version noise.
@@ -34,13 +35,13 @@ Four invariants that cut across all three:
   └──────────┘              └──────────┘              └──────────┘
         └─────────────────────────┬─────────────────────────┘
                                   ▼
-                          ┌─ ─ ─ ─ ─ ─ ─┐
-                          │  reflect/   │   ← planned, see Future Skills
-                          │ cross-skill │
-                          └─ ─ ─ ─ ─ ─ ─┘
+                          ┌─────────────┐
+                          │  reflect/   │   ← cross-skill pattern miner
+                          │ cross-skill │      reads from the three above
+                          └─────────────┘
 ```
 
-Three peers today, one shared workspace, with a fourth (`reflect`) reserved for cross-skill pattern mining. Each skill owns a subdirectory under `aha-workspace/`; nothing crosses borders at runtime today.
+Three peers that own their own write surface, plus a fourth (`reflect`) that reads across all three for cross-source pattern mining. Each skill owns a subdirectory under `aha-workspace/`; only `reflect` reads outside its own subdirectory at runtime, and only in read-only mode.
 
 ### When to use which skill
 
@@ -49,8 +50,9 @@ Three peers today, one shared workspace, with a fourth (`reflect`) reserved for 
 | a todo with a deadline / what they did today / a weekly or monthly review / something overdue / postponing | `daily` |
 | an outward direction that needs incubating, researching, deciding / "I have an idea" / their idea inbox | `idea` |
 | an inward realization, a one-line aha, wanting to sit with a thought / "I just realized" / refining an old insight | `dao` |
+| looking across idea + dao + daily over a window for recurring tags / themes / difficulties; explicit cross-skill reflection | `reflect` |
 
-When intent is ambiguous, prefer asking once over guessing — these three are deliberately distinct work modes, not interchangeable buckets.
+When intent is ambiguous, prefer asking once over guessing — these are deliberately distinct work modes, not interchangeable buckets. A *single-source* review ("look at this week's tasks") stays in that source; only use `reflect` for explicitly cross-source synthesis.
 
 ## Skills
 
@@ -170,6 +172,33 @@ python3 skills/daily/scripts/daily_md.py scan --mode overdue
 python3 skills/daily/scripts/daily_md.py scan --mode period --period week --type all
 ```
 
+### `reflect/` — Cross-skill weekly pattern miner
+
+Read across `idea` + `dao` + `daily` records over a time window and surface patterns the agent can discuss with the user — e.g. "three of this week's daos all touch on 'boundaries'", "two overdue tasks both came from 'agreeing too quickly'", "a single recurring tag spans tasks, insights, and ideas". Sits above the other three; reads only.
+
+- **Trigger**: `/reflect`; phrases like "look across everything this month", "any common threads", "weekly cross-skill reflection" (Chinese: "跨着想想 / 跨 skill 复盘 / 这周看下整体" — full list in [`skills/reflect/SKILL.md`](skills/reflect/SKILL.md)).
+- **Storage**: `./aha-workspace/reflect/reflections/reflect-<period-id>.md` (write-once snapshot; never overwrites).
+- **Actions**: `aggregate` / `tags` / `difficulties` / `save` (no per-record state; reflect captures nothing of its own).
+- **CLI**: `skills/reflect/scripts/reflect_md.py`.
+
+`save` pre-fills the reflection file with a deterministic cross-source snapshot (idea / dao / daily.tasks / daily.logs / daily.difficulties + tag frequencies). The agent and user co-author the trailing `## 模式与启示` and `## 下阶段意图` sections during the conversation — those are not auto-fillable.
+
+#### Quick start
+
+```bash
+# This week, across all three sources
+python3 skills/reflect/scripts/reflect_md.py aggregate --period week
+python3 skills/reflect/scripts/reflect_md.py tags --period week --min-count 2
+python3 skills/reflect/scripts/reflect_md.py difficulties --period week
+
+# Once you've discussed with the user, archive the reflection
+python3 skills/reflect/scripts/reflect_md.py save --period week
+# → ./aha-workspace/reflect/reflections/reflect-2026-W20.md
+
+# Anchor to a specific date (e.g. last week)
+python3 skills/reflect/scripts/reflect_md.py save --period week --date 2026-05-07
+```
+
 ## Repository layout
 
 ```
@@ -191,13 +220,20 @@ aha-skills/
     │   │   └── dao_md.py        # CLI: capture / refine / discuss / scan / update
     │   └── tests/
     │       └── test_dao_md.py
-    └── daily/
+    ├── daily/
+    │   ├── SKILL.md
+    │   ├── references/
+    │   ├── scripts/
+    │   │   └── daily_md.py      # CLI: task / update / checkin / log / scan
+    │   └── tests/
+    │       └── test_daily_md.py
+    └── reflect/
         ├── SKILL.md
         ├── references/
         ├── scripts/
-        │   └── daily_md.py      # CLI: task / update / checkin / log / scan
+        │   └── reflect_md.py    # CLI: aggregate / tags / difficulties / save
         └── tests/
-            └── test_daily_md.py
+            └── test_reflect_md.py
 ```
 
 ## Installing a skill into a host
@@ -211,6 +247,7 @@ aha-skills/
 python3 skills/idea/tests/test_idea_md.py
 python3 skills/dao/tests/test_dao_md.py
 python3 skills/daily/tests/test_daily_md.py
+python3 skills/reflect/tests/test_reflect_md.py
 ```
 
 ## Conventions
@@ -220,19 +257,3 @@ python3 skills/daily/tests/test_daily_md.py
 - Skills should never write outside `aha-workspace/<skill>/` at runtime.
 - New skills follow the same shape: `SKILL.md`, optional `scripts/`, `tests/`, `references/`.
 
-## Future Skills (planned)
-
-### `reflect/` — Cross-skill weekly pattern miner
-
-Read across `idea` + `dao` + `daily` records over a time window and surface patterns the agent can discuss with the user — e.g. "three of this week's daos all touch on 'boundaries'", "two overdue tasks both came from 'agreeing too quickly'", "a single recurring tag spans tasks, insights, and ideas".
-
-Intended scope of v0:
-
-- `aggregate --period <day|week|month>` — walk the 6 record dirs in `aha-workspace/`, output a structured TSV of records in range.
-- `tags --period ...` — tag frequency / co-occurrence across sources.
-- `difficulties --period ...` — extract `## Difficulty Log` entries from daily tasks.
-- `save --period ...` — write a reflection skeleton to `aha-workspace/reflect/reflections/reflect-<period-id>.md` for the agent to fill in.
-
-Pattern-level synthesis is the agent's (LLM) job; the CLI provides the deterministic data substrate. The folder shape mirrors the existing skills (`SKILL.md` + `scripts/` + `tests/` + `agents/` + `references/`).
-
-**Status**: design only — not implemented in v0.1. Tracked here so future contributors see the architectural seat already reserved (visible in the architecture diagram above as the dashed fourth peer).
