@@ -9,23 +9,31 @@ Subcommands:
   tags         tag frequencies + co-occurrence pairs across sources
   difficulties extract daily.task ## Difficulty Log lines whose date is in range
   save         pre-fill a Markdown reflection skeleton with the snapshot above
-
-Internal note (intentional, v0.2): we re-implement a tiny frontmatter parser
-and period_range here rather than importing from the sibling CLIs. The user
-chose not to extract a common library yet; if you do that later, this is the
-first migration target.
 """
 
 import argparse
-import json
 import re
-from datetime import date, datetime, time, timedelta
+import sys
+from datetime import date
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
+from aha_md import (  # noqa: E402
+    WORKSPACE_DIR_NAME,
+    ensure_dir,
+    local_now,
+    parse_dt,
+    parse_frontmatter_lines,
+    parse_tags_field,
+    period_range,
+    read_section,
+    split_frontmatter,
+    title_from_body,
+    unique_path,
+)
 
-WORKSPACE_DIR_NAME = "aha-workspace"
+
 WORKSPACE_ROOT = Path(WORKSPACE_DIR_NAME)
-
 IDEA_DIR_RELATIVE = WORKSPACE_ROOT / "idea" / "idea-md"
 DAO_DIR_RELATIVE = WORKSPACE_ROOT / "dao" / "dao-md"
 DAILY_TASKS_DIR_RELATIVE = WORKSPACE_ROOT / "daily" / "tasks"
@@ -41,28 +49,12 @@ DIFFICULTY_LINE_RE = re.compile(
 )
 
 
-def local_now():
-    return datetime.now().astimezone()
-
-
-def ensure_dir(path):
-    path.mkdir(parents=True, exist_ok=True)
-
-
 def _resolve(rel):
     return (Path.cwd() / rel).resolve()
 
 
-def split_frontmatter(text):
-    if not text.startswith("---\n"):
-        return [], text
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return [], text
-    return text[4:end].splitlines(), text[end + len("\n---\n"):]
-
-
-def parse_frontmatter(path):
+def _parse_frontmatter_with_body(path):
+    """Return (meta_dict, body) or (None, None) when path is not parseable."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -70,37 +62,7 @@ def parse_frontmatter(path):
     lines, body = split_frontmatter(text)
     if not lines:
         return None, None
-    data = {}
-    for line in lines:
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        data[key.strip()] = value.strip()
-    return data, body
-
-
-def parse_tags(value):
-    if not value:
-        return []
-    try:
-        parsed = json.loads(value)
-    except (ValueError, json.JSONDecodeError):
-        return []
-    if isinstance(parsed, list):
-        return [str(item) for item in parsed]
-    return []
-
-
-def parse_dt(value):
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.astimezone()
-    return parsed
+    return parse_frontmatter_lines(lines), body
 
 
 def parse_date_str(value):
@@ -110,26 +72,6 @@ def parse_date_str(value):
         return date.fromisoformat(value)
     except ValueError:
         return None
-
-
-def period_range(period, anchor):
-    """Return (start_date, end_date) inclusive, in local-date space."""
-    if period == "day":
-        return anchor, anchor
-    if period == "week":
-        weekday = anchor.isoweekday()  # Monday=1 .. Sunday=7
-        monday = anchor - timedelta(days=weekday - 1)
-        sunday = monday + timedelta(days=6)
-        return monday, sunday
-    if period == "month":
-        first = anchor.replace(day=1)
-        if first.month == 12:
-            next_first = first.replace(year=first.year + 1, month=1)
-        else:
-            next_first = first.replace(month=first.month + 1)
-        last = next_first - timedelta(days=1)
-        return first, last
-    raise SystemExit(f"Unknown period: {period}")
 
 
 def period_id(period, start, end):
@@ -142,16 +84,6 @@ def period_id(period, start, end):
     if period == "month":
         return start.strftime("%Y-%m")
     raise SystemExit(f"Unknown period: {period}")
-
-
-def title_from_body(body):
-    if not body:
-        return ""
-    for line in body.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("# "):
-            return stripped[2:].strip()
-    return ""
 
 
 def in_range(target_date, start, end):
@@ -178,7 +110,7 @@ def load_records(source, start, end):
         root = _resolve(IDEA_DIR_RELATIVE)
         if root.is_dir():
             for path in sorted(root.rglob("*.md")):
-                meta, body = parse_frontmatter(path)
+                meta, body = _parse_frontmatter_with_body(path)
                 if meta is None:
                     continue
                 if not in_range(_record_date_for_range(meta), start, end):
@@ -188,7 +120,7 @@ def load_records(source, start, end):
         root = _resolve(DAO_DIR_RELATIVE)
         if root.is_dir():
             for path in sorted(root.rglob("*.md")):
-                meta, body = parse_frontmatter(path)
+                meta, body = _parse_frontmatter_with_body(path)
                 if meta is None:
                     continue
                 if not in_range(_record_date_for_range(meta), start, end):
@@ -198,7 +130,7 @@ def load_records(source, start, end):
         root = _resolve(DAILY_TASKS_DIR_RELATIVE)
         if root.is_dir():
             for path in sorted(root.rglob("*.md")):
-                meta, body = parse_frontmatter(path)
+                meta, body = _parse_frontmatter_with_body(path)
                 if meta is None:
                     continue
                 if meta.get("type") and meta.get("type") != "task":
@@ -209,7 +141,7 @@ def load_records(source, start, end):
         root = _resolve(DAILY_LOGS_DIR_RELATIVE)
         if root.is_dir():
             for path in sorted(root.rglob("*.md")):
-                meta, body = parse_frontmatter(path)
+                meta, body = _parse_frontmatter_with_body(path)
                 if meta is None:
                     continue
                 if meta.get("type") and meta.get("type") != "log":
@@ -246,7 +178,7 @@ def aggregate(args):
             status = "-"
             date_field = meta.get("date", "")
         title = title_from_body(body)
-        tags = parse_tags(meta.get("tags", ""))
+        tags = parse_tags_field(meta.get("tags", ""))
         print("\t".join([
             source,
             sub_type,
@@ -262,7 +194,7 @@ def aggregate(args):
 def _records_with_tags(records):
     out = []
     for source, _sub_type, meta, _body, _path in records:
-        tags = parse_tags(meta.get("tags", ""))
+        tags = parse_tags_field(meta.get("tags", ""))
         if tags:
             out.append((source, tags))
     return out
@@ -310,14 +242,14 @@ def difficulties(args):
     if not root.is_dir():
         return
     for path in sorted(root.rglob("*.md")):
-        meta, body = parse_frontmatter(path)
+        meta, body = _parse_frontmatter_with_body(path)
         if meta is None:
             continue
         if meta.get("type") and meta.get("type") != "task":
             continue
         if not body:
             continue
-        section = _read_section(body, "Difficulty Log 困难记录")
+        section = read_section(body, "Difficulty Log 困难记录")
         if not section:
             continue
         title = title_from_body(body)
@@ -339,28 +271,6 @@ def difficulties(args):
             ]))
 
 
-def _read_section(body, heading):
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
-        return ""
-    start = pos + len(marker)
-    next_pos = body.find("\n## ", start)
-    end = len(body) if next_pos == -1 else next_pos
-    return body[start:end].strip("\n").strip()
-
-
-def _unique_reflect_path(root, base_id):
-    candidate_id = base_id
-    candidate_path = root / f"{candidate_id}.md"
-    counter = 2
-    while candidate_path.exists():
-        candidate_id = f"{base_id}-{counter}"
-        candidate_path = root / f"{candidate_id}.md"
-        counter += 1
-    return candidate_id, candidate_path
-
-
 def _render_snapshot(records, args, start, end):
     lines = []
     by_source = {"idea": [], "dao": [], "daily.task": [], "daily.log": []}
@@ -373,7 +283,7 @@ def _render_snapshot(records, args, start, end):
     lines.append(f"### idea ({len(by_source['idea'])})")
     if by_source["idea"]:
         for _, _, meta, body, _ in by_source["idea"]:
-            tags = parse_tags(meta.get("tags", ""))
+            tags = parse_tags_field(meta.get("tags", ""))
             tag_str = ", ".join(tags) if tags else "-"
             lines.append(
                 f"- {meta.get('status', '?'):<11} | tags: [{tag_str}] | "
@@ -388,7 +298,7 @@ def _render_snapshot(records, args, start, end):
     if by_source["dao"]:
         for _, _, meta, body, _ in by_source["dao"]:
             updated = meta.get("updated_at", "")[:10] or "?"
-            tags = parse_tags(meta.get("tags", ""))
+            tags = parse_tags_field(meta.get("tags", ""))
             tag_str = ", ".join(tags) if tags else "-"
             lines.append(
                 f"- {updated} | tags: [{tag_str}] | "
@@ -418,7 +328,7 @@ def _render_snapshot(records, args, start, end):
     lines.append(f"### daily.logs ({len(logs_in)})")
     if logs_in:
         for _, _, meta, _body, _ in logs_in:
-            tags = parse_tags(meta.get("tags", ""))
+            tags = parse_tags_field(meta.get("tags", ""))
             tag_str = ", ".join(tags) if tags else "-"
             lines.append(
                 f"- {meta.get('date', '?')} | {meta.get('entry_count', '0')} entries "
@@ -446,12 +356,12 @@ def _collect_difficulties(start, end):
     if not root.is_dir():
         return out
     for path in sorted(root.rglob("*.md")):
-        meta, body = parse_frontmatter(path)
+        meta, body = _parse_frontmatter_with_body(path)
         if meta is None or not body:
             continue
         if meta.get("type") and meta.get("type") != "task":
             continue
-        section = _read_section(body, "Difficulty Log 困难记录")
+        section = read_section(body, "Difficulty Log 困难记录")
         if not section:
             continue
         title = title_from_body(body)
@@ -489,7 +399,7 @@ def save(args):
 
     root = _resolve(REFLECT_DIR_RELATIVE)
     ensure_dir(root)
-    reflect_id, path = _unique_reflect_path(root, f"reflect-{pid}")
+    reflect_id, path = unique_path(root, f"reflect-{pid}")
 
     records = load_records("all", start, end)
     snapshot_md, _diffs = _render_snapshot(records, args, start, end)

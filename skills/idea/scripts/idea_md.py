@@ -1,74 +1,51 @@
 #!/usr/bin/env python3
 import argparse
-import hashlib
-import json
-import re
-from datetime import datetime, timedelta
+import sys
+from datetime import timedelta
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
+from aha_md import (  # noqa: E402
+    WORKSPACE_DIR_NAME,
+    append_to_section,
+    ensure_dir,
+    format_tags,
+    int_meta,
+    local_now,
+    parse_dt,
+    parse_frontmatter,
+    set_meta,
+    slugify,
+    split_frontmatter,
+    unique_path,
+)
 
 
 ACTIVE_STATUSES = {"inbox", "researching", "planning"}
 PAUSED_STATUS = "paused"
 STATUSES = {"inbox", "researching", "planning", "paused", "completed", "killed"}
-WORKSPACE_DIR_NAME = "aha-workspace"
 IDEA_DIR_RELATIVE = Path(WORKSPACE_DIR_NAME) / "idea" / "idea-md"
 IDEA_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/idea/idea-md"
-
-
-def local_now():
-    return datetime.now().astimezone()
-
-
-def slugify(text):
-    words = re.findall(r"[A-Za-z0-9]+", text.lower())
-    if not words:
-        return hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
-    return "-".join(words[:8])[:64].strip("-") or "idea"
-
-
-def title_from(text):
-    first = " ".join(text.strip().split())
-    if not first:
-        return "Untitled Idea"
-    return first[:80]
-
-
-def ensure_dir(path):
-    path.mkdir(parents=True, exist_ok=True)
 
 
 def default_idea_dir():
     return (Path.cwd() / IDEA_DIR_RELATIVE).resolve()
 
 
-def unique_idea_path(root, idea_id):
-    candidate_id = idea_id
-    candidate_path = root / f"{candidate_id}.md"
-    counter = 2
-    while candidate_path.exists():
-        candidate_id = f"{idea_id}-{counter}"
-        candidate_path = root / f"{candidate_id}.md"
-        counter += 1
-    return candidate_id, candidate_path
-
-
 def normalize_datetime(value):
     if not value:
         return ""
-    parsed = parse_datetime(value)
+    parsed = parse_dt(value)
     if parsed is None:
         raise SystemExit(f"Invalid datetime: {value}")
     return parsed.isoformat(timespec="seconds")
 
 
-def format_tags(value):
-    if not value:
-        return "[]"
-    if isinstance(value, str):
-        tags = [tag.strip() for tag in value.split(",") if tag.strip()]
-    else:
-        tags = list(value)
-    return json.dumps(tags, ensure_ascii=False)
+def title_from_text(text):
+    first = " ".join(text.strip().split())
+    if not first:
+        return "Untitled Idea"
+    return first[:80]
 
 
 def capture(args):
@@ -76,9 +53,9 @@ def capture(args):
     ensure_dir(root)
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
-    slug = slugify(args.text)
-    idea_id, path = unique_idea_path(root, f"idea-{stamp}-{slug}")
-    title = args.title or title_from(args.text)
+    slug = slugify(args.text, fallback="idea")
+    idea_id, path = unique_path(root, f"idea-{stamp}-{slug}")
+    title = args.title or title_from_text(args.text)
     timestamp = now.isoformat(timespec="seconds")
     next_review_at = normalize_datetime(args.next_review_at)
     body = f"""---
@@ -139,61 +116,6 @@ TBD
     print(path)
 
 
-def split_frontmatter(text):
-    if not text.startswith("---\n"):
-        return [], text
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return [], text
-    return text[4:end].splitlines(), text[end + len("\n---\n") :]
-
-
-def parse_frontmatter(path):
-    lines, _ = split_frontmatter(path.read_text(encoding="utf-8"))
-    data = {}
-    for line in lines:
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        data[key.strip()] = value.strip()
-    return data
-
-
-def parse_datetime(value):
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.astimezone()
-    return parsed
-
-
-def set_meta(lines, key, value):
-    prefix = f"{key}:"
-    rendered = f"{key}: {value}"
-    for index, line in enumerate(lines):
-        if line.startswith(prefix):
-            lines[index] = rendered
-            return
-    lines.append(rendered)
-
-
-def append_to_section(body, heading, line):
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
-        suffix = "" if body.endswith("\n") else "\n"
-        return f"{body}{suffix}\n{marker}\n\n{line}\n"
-    next_pos = body.find("\n## ", pos + len(marker))
-    insert_at = len(body) if next_pos == -1 else next_pos
-    before = body[:insert_at].rstrip()
-    after = body[insert_at:]
-    return f"{before}\n{line}\n{after}"
-
-
 def update(args):
     path = Path(args.file).expanduser().resolve()
     text = path.read_text(encoding="utf-8")
@@ -220,10 +142,7 @@ def update(args):
     if args.prompted:
         set_meta(lines, "last_prompted_at", now.isoformat(timespec="seconds"))
     if args.bump_review:
-        try:
-            review_count = int(meta.get("review_count") or "0") + 1
-        except ValueError:
-            review_count = 1
+        review_count = int_meta(meta, "review_count") + 1
         set_meta(lines, "review_count", str(review_count))
     elif args.review_count is not None:
         set_meta(lines, "review_count", str(args.review_count))
@@ -255,8 +174,8 @@ def scan(args):
             eligible = status in ACTIVE_STATUSES
         if not eligible:
             continue
-        updated_at = parse_datetime(meta.get("updated_at"))
-        next_review_at = parse_datetime(meta.get("next_review_at"))
+        updated_at = parse_dt(meta.get("updated_at"))
+        next_review_at = parse_dt(meta.get("next_review_at"))
         due_for_review = next_review_at is not None and next_review_at <= now
         stale = updated_at is None or updated_at <= cutoff
         if due_for_review or (stale and next_review_at is None):

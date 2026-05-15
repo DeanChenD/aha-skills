@@ -1,14 +1,33 @@
 #!/usr/bin/env python3
 import argparse
-import hashlib
-import json
 import random
-import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
+from aha_md import (  # noqa: E402
+    WORKSPACE_DIR_NAME,
+    append_to_section,
+    ensure_dir,
+    format_tags,
+    int_meta,
+    load_record,
+    local_now,
+    parse_dt,
+    parse_frontmatter_lines,
+    parse_tags_field,
+    read_section,
+    replace_section,
+    save_record,
+    set_meta,
+    slugify,
+    split_frontmatter,
+    title_from_body,
+    unique_path,
+)
 
-WORKSPACE_DIR_NAME = "aha-workspace"
+
 DAO_DIR_RELATIVE = Path(WORKSPACE_DIR_NAME) / "dao" / "dao-md"
 SESSIONS_DIR_RELATIVE = Path(WORKSPACE_DIR_NAME) / "dao" / "sessions"
 DAO_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/dao/dao-md"
@@ -24,28 +43,6 @@ REFINED_PLACEHOLDER = "TBD"
 SCAN_MODES = ("random", "oldest", "least-reviewed")
 
 
-def local_now():
-    return datetime.now().astimezone()
-
-
-def slugify(text):
-    words = re.findall(r"[A-Za-z0-9]+", text.lower())
-    if not words:
-        return hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
-    return "-".join(words[:8])[:64].strip("-") or "dao"
-
-
-def title_from(text):
-    first = " ".join(text.strip().split())
-    if not first:
-        return "Untitled Dao"
-    return first[:80]
-
-
-def ensure_dir(path):
-    path.mkdir(parents=True, exist_ok=True)
-
-
 def default_dao_dir():
     return (Path.cwd() / DAO_DIR_RELATIVE).resolve()
 
@@ -54,131 +51,11 @@ def default_sessions_dir():
     return (Path.cwd() / SESSIONS_DIR_RELATIVE).resolve()
 
 
-def unique_dao_path(root, dao_id):
-    candidate_id = dao_id
-    candidate_path = root / f"{candidate_id}.md"
-    counter = 2
-    while candidate_path.exists():
-        candidate_id = f"{dao_id}-{counter}"
-        candidate_path = root / f"{candidate_id}.md"
-        counter += 1
-    return candidate_id, candidate_path
-
-
-def format_tags(value):
-    if not value:
-        return "[]"
-    if isinstance(value, str):
-        tags = [tag.strip() for tag in value.split(",") if tag.strip()]
-    else:
-        tags = list(value)
-    return json.dumps(tags, ensure_ascii=False)
-
-
-def parse_tags_field(value):
-    if not value:
-        return []
-    try:
-        parsed = json.loads(value)
-    except (ValueError, json.JSONDecodeError):
-        return []
-    if isinstance(parsed, list):
-        return [str(item) for item in parsed]
-    return []
-
-
-def split_frontmatter(text):
-    if not text.startswith("---\n"):
-        return [], text
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return [], text
-    return text[4:end].splitlines(), text[end + len("\n---\n") :]
-
-
-def parse_frontmatter_lines(lines):
-    data = {}
-    for line in lines:
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        data[key.strip()] = value.strip()
-    return data
-
-
-def parse_frontmatter(path):
-    lines, _ = split_frontmatter(path.read_text(encoding="utf-8"))
-    return parse_frontmatter_lines(lines)
-
-
-def set_meta(lines, key, value):
-    prefix = f"{key}:"
-    rendered = f"{key}: {value}"
-    for index, line in enumerate(lines):
-        if line.startswith(prefix):
-            lines[index] = rendered
-            return
-    lines.append(rendered)
-
-
-def append_to_section(body, heading, line):
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
-        suffix = "" if body.endswith("\n") else "\n"
-        return f"{body}{suffix}\n{marker}\n\n{line}\n"
-    next_pos = body.find("\n## ", pos + len(marker))
-    insert_at = len(body) if next_pos == -1 else next_pos
-    before = body[:insert_at].rstrip()
-    after = body[insert_at:]
-    return f"{before}\n{line}\n{after}"
-
-
-def read_section(body, heading):
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
-        return ""
-    start = pos + len(marker)
-    next_pos = body.find("\n## ", start)
-    end = len(body) if next_pos == -1 else next_pos
-    return body[start:end].strip("\n").strip()
-
-
-def replace_section(body, heading, new_content):
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
-        suffix = "" if body.endswith("\n") else "\n"
-        return f"{body}{suffix}\n{marker}\n\n{new_content.rstrip()}\n"
-    start = pos + len(marker)
-    next_pos = body.find("\n## ", start)
-    end = len(body) if next_pos == -1 else next_pos
-    head = body[:pos] + marker + "\n\n" + new_content.rstrip() + "\n"
-    tail = body[end:]
-    if tail and not tail.startswith("\n"):
-        head = head.rstrip("\n") + "\n"
-    return head + tail
-
-
-def title_from_body(body):
-    for line in body.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("# "):
-            return stripped[2:].strip()
-    return ""
-
-
-def parse_dt(value):
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.astimezone()
-    return parsed
+def title_from_text(text):
+    first = " ".join(text.strip().split())
+    if not first:
+        return "Untitled Dao"
+    return first[:80]
 
 
 def render_dao_skeleton(dao_id, title, raw_text, now, source, priority, category, tags):
@@ -219,34 +96,14 @@ tags: {format_tags(tags)}
 """
 
 
-def _load(path):
-    text = path.read_text(encoding="utf-8")
-    lines, body = split_frontmatter(text)
-    if not lines:
-        raise SystemExit(f"Missing frontmatter: {path}")
-    meta = parse_frontmatter_lines(lines)
-    return lines, meta, body
-
-
-def _save(path, lines, body):
-    path.write_text("---\n" + "\n".join(lines) + "\n---\n" + body, encoding="utf-8")
-
-
-def _int_meta(meta, key):
-    try:
-        return int(meta.get(key) or "0")
-    except ValueError:
-        return 0
-
-
 def capture(args):
     root = default_dao_dir()
     ensure_dir(root)
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
-    slug = slugify(args.text)
-    dao_id, path = unique_dao_path(root, f"dao-{stamp}-{slug}")
-    title = args.title or title_from(args.text)
+    slug = slugify(args.text, fallback="dao")
+    dao_id, path = unique_path(root, f"dao-{stamp}-{slug}")
+    title = args.title or title_from_text(args.text)
     body = render_dao_skeleton(
         dao_id,
         title,
@@ -263,10 +120,10 @@ def capture(args):
 
 def refine(args):
     path = Path(args.file).expanduser().resolve()
-    lines, meta, body = _load(path)
+    lines, meta, body = load_record(path)
     now = local_now()
 
-    old_count = _int_meta(meta, "refine_count")
+    old_count = int_meta(meta, "refine_count")
     new_count = old_count + 1
 
     current_refined = read_section(body, REFINED_HEADING)
@@ -279,17 +136,17 @@ def refine(args):
     set_meta(lines, "refine_count", str(new_count))
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
 
-    _save(path, lines, body)
+    save_record(path, lines, body)
     print(path)
 
 
 def discuss(args):
     path = Path(args.file).expanduser().resolve()
-    lines, meta, body = _load(path)
+    lines, meta, body = load_record(path)
     now = local_now()
 
     parent_id = meta.get("id") or path.stem
-    new_count = _int_meta(meta, "discussion_count") + 1
+    new_count = int_meta(meta, "discussion_count") + 1
     session_index = f"{new_count:03d}"
     session_id = f"{parent_id}-session-{session_index}"
 
@@ -329,7 +186,7 @@ created_at: {timestamp}
     set_meta(lines, "discussion_count", str(new_count))
     set_meta(lines, "updated_at", timestamp)
 
-    _save(path, lines, body)
+    save_record(path, lines, body)
     print(session_path)
 
 
@@ -343,7 +200,7 @@ def _scan_sort(candidates, mode):
             key=lambda c: parse_dt(c[1].get("updated_at")) or datetime.min.replace(tzinfo=local_now().tzinfo),
         )
     if mode == "least-reviewed":
-        return sorted(candidates, key=lambda c: _int_meta(c[1], "review_count"))
+        return sorted(candidates, key=lambda c: int_meta(c[1], "review_count"))
     return candidates
 
 
@@ -374,11 +231,11 @@ def scan(args):
     timestamp = now.isoformat(timespec="seconds")
 
     for path, meta, body in selected:
-        new_review = _int_meta(meta, "review_count") + 1
+        new_review = int_meta(meta, "review_count") + 1
         fm_lines, _ = split_frontmatter(path.read_text(encoding="utf-8"))
         set_meta(fm_lines, "review_count", str(new_review))
         set_meta(fm_lines, "last_reviewed_at", timestamp)
-        _save(path, fm_lines, body)
+        save_record(path, fm_lines, body)
         title = title_from_body(body)
         print(
             f"{new_review}\t{meta.get('updated_at', '')}\t{meta.get('id', '')}\t{path}\t{title}"
@@ -387,7 +244,7 @@ def scan(args):
 
 def update(args):
     path = Path(args.file).expanduser().resolve()
-    lines, _meta, body = _load(path)
+    lines, _meta, body = load_record(path)
     now = local_now()
 
     if args.category is not None:
@@ -401,7 +258,7 @@ def update(args):
     if args.note:
         body = append_to_section(body, NOTES_HEADING, f"- {now.date().isoformat()}: {args.note}")
 
-    _save(path, lines, body)
+    save_record(path, lines, body)
     print(path)
 
 

@@ -1,13 +1,32 @@
 #!/usr/bin/env python3
 import argparse
-import hashlib
-import json
 import re
+import sys
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
+from aha_md import (  # noqa: E402
+    WORKSPACE_DIR_NAME,
+    append_to_section,
+    ensure_dir,
+    format_tags,
+    int_meta,
+    load_record,
+    local_now,
+    parse_dt,
+    parse_frontmatter_lines,
+    parse_tags_field,
+    period_range,
+    save_record,
+    set_meta,
+    slugify,
+    split_frontmatter,
+    title_from_body,
+    unique_path,
+)
 
-WORKSPACE_DIR_NAME = "aha-workspace"
+
 DAILY_ROOT_RELATIVE = Path(WORKSPACE_DIR_NAME) / "daily"
 TASKS_DIR_RELATIVE = DAILY_ROOT_RELATIVE / "tasks"
 LOGS_DIR_RELATIVE = DAILY_ROOT_RELATIVE / "logs"
@@ -37,26 +56,11 @@ PERIODS = ("day", "week", "month")
 SCAN_TYPES = ("task", "log", "all")
 
 
-def local_now():
-    return datetime.now().astimezone()
-
-
-def slugify(text):
-    words = re.findall(r"[A-Za-z0-9]+", text.lower())
-    if not words:
-        return hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
-    return "-".join(words[:8])[:64].strip("-") or "task"
-
-
-def title_from(text):
+def title_from_text(text):
     first = " ".join(text.strip().split())
     if not first:
         return "Untitled Task"
     return first[:80]
-
-
-def ensure_dir(path):
-    path.mkdir(parents=True, exist_ok=True)
 
 
 def default_tasks_dir():
@@ -75,39 +79,6 @@ def default_reviews_dir():
     return (Path.cwd() / REVIEWS_DIR_RELATIVE).resolve()
 
 
-def unique_path(root, base_id):
-    candidate_id = base_id
-    candidate_path = root / f"{candidate_id}.md"
-    counter = 2
-    while candidate_path.exists():
-        candidate_id = f"{base_id}-{counter}"
-        candidate_path = root / f"{candidate_id}.md"
-        counter += 1
-    return candidate_id, candidate_path
-
-
-def format_tags(value):
-    if not value:
-        return "[]"
-    if isinstance(value, str):
-        tags = [tag.strip() for tag in value.split(",") if tag.strip()]
-    else:
-        tags = list(value)
-    return json.dumps(tags, ensure_ascii=False)
-
-
-def parse_tags_field(value):
-    if not value:
-        return []
-    try:
-        parsed = json.loads(value)
-    except (ValueError, json.JSONDecodeError):
-        return []
-    if isinstance(parsed, list):
-        return [str(item) for item in parsed]
-    return []
-
-
 def union_tags(existing_json_str, new_csv):
     existing = parse_tags_field(existing_json_str)
     new = [t.strip() for t in (new_csv or "").split(",") if t.strip()]
@@ -118,68 +89,6 @@ def union_tags(existing_json_str, new_csv):
             seen.add(tag)
             merged.append(tag)
     return format_tags(merged)
-
-
-def split_frontmatter(text):
-    if not text.startswith("---\n"):
-        return [], text
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return [], text
-    return text[4:end].splitlines(), text[end + len("\n---\n") :]
-
-
-def parse_frontmatter_lines(lines):
-    data = {}
-    for line in lines:
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        data[key.strip()] = value.strip()
-    return data
-
-
-def set_meta(lines, key, value):
-    prefix = f"{key}:"
-    rendered = f"{key}: {value}"
-    for index, line in enumerate(lines):
-        if line.startswith(prefix):
-            lines[index] = rendered
-            return
-    lines.append(rendered)
-
-
-def append_to_section(body, heading, line):
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
-        suffix = "" if body.endswith("\n") else "\n"
-        return f"{body}{suffix}\n{marker}\n\n{line}\n"
-    next_pos = body.find("\n## ", pos + len(marker))
-    insert_at = len(body) if next_pos == -1 else next_pos
-    before = body[:insert_at].rstrip()
-    after = body[insert_at:]
-    return f"{before}\n{line}\n{after}"
-
-
-def title_from_body(body):
-    for line in body.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("# "):
-            return stripped[2:].strip()
-    return ""
-
-
-def parse_dt(value):
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.astimezone()
-    return parsed
 
 
 DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -225,25 +134,6 @@ def parse_time_arg(value):
             return datetime.strptime(value, "%H:%M:%S").time()
         except ValueError:
             raise SystemExit(f"Invalid time: {value}")
-
-
-def period_range(period, anchor):
-    if period == "day":
-        return anchor, anchor
-    if period == "week":
-        weekday = anchor.isoweekday()
-        monday = anchor - timedelta(days=weekday - 1)
-        sunday = monday + timedelta(days=6)
-        return monday, sunday
-    if period == "month":
-        first = anchor.replace(day=1)
-        if first.month == 12:
-            next_first = first.replace(year=first.year + 1, month=1)
-        else:
-            next_first = first.replace(month=first.month + 1)
-        last = next_first - timedelta(days=1)
-        return first, last
-    raise SystemExit(f"Unknown period: {period}")
 
 
 def render_task_skeleton(task_id, title, description, now, due_at_iso, priority, source, category, tags):
@@ -330,26 +220,6 @@ created_at: {timestamp}
 """
 
 
-def _load(path):
-    text = path.read_text(encoding="utf-8")
-    lines, body = split_frontmatter(text)
-    if not lines:
-        raise SystemExit(f"Missing frontmatter: {path}")
-    meta = parse_frontmatter_lines(lines)
-    return lines, meta, body
-
-
-def _save(path, lines, body):
-    path.write_text("---\n" + "\n".join(lines) + "\n---\n" + body, encoding="utf-8")
-
-
-def _int_meta(meta, key):
-    try:
-        return int(meta.get(key) or "0")
-    except ValueError:
-        return 0
-
-
 def _append_log_entry(body, time_str, title, text):
     body = body.rstrip() + "\n\n"
     body += f"## {time_str} — {title}\n\n{text.strip()}\n"
@@ -361,9 +231,9 @@ def task(args):
     ensure_dir(root)
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
-    slug = slugify(args.text)
+    slug = slugify(args.text, fallback="task")
     task_id, path = unique_path(root, f"task-{stamp}-{slug}")
-    title = args.title or title_from(args.text)
+    title = args.title or title_from_text(args.text)
     due_iso = parse_due(args.due) if args.due else ""
     body = render_task_skeleton(
         task_id,
@@ -382,7 +252,7 @@ def task(args):
 
 def update(args):
     path = Path(args.file).expanduser().resolve()
-    lines, meta, body = _load(path)
+    lines, meta, body = load_record(path)
     now = local_now()
 
     if args.category is not None:
@@ -402,7 +272,7 @@ def update(args):
         old_due = meta.get("due_at", "")
         set_meta(lines, "due_at", new_due_iso)
         if args.postpone_reason:
-            new_count = _int_meta(meta, "postpone_count") + 1
+            new_count = int_meta(meta, "postpone_count") + 1
             set_meta(lines, "postpone_count", str(new_count))
             log_line = (
                 f"- {now.date().isoformat()}: {old_due or '(unset)'} → "
@@ -411,7 +281,7 @@ def update(args):
             body = append_to_section(body, POSTPONEMENT_LOG_HEADING, log_line)
 
     if args.difficulty:
-        new_count = _int_meta(meta, "difficulty_count") + 1
+        new_count = int_meta(meta, "difficulty_count") + 1
         set_meta(lines, "difficulty_count", str(new_count))
         body = append_to_section(
             body,
@@ -425,17 +295,17 @@ def update(args):
         )
 
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
-    _save(path, lines, body)
+    save_record(path, lines, body)
     print(path)
 
 
 def checkin(args):
     path = Path(args.file).expanduser().resolve()
-    lines, meta, body = _load(path)
+    lines, meta, body = load_record(path)
     now = local_now()
 
     parent_id = meta.get("id") or path.stem
-    new_count = _int_meta(meta, "checkin_count") + 1
+    new_count = int_meta(meta, "checkin_count") + 1
     checkin_index = f"{new_count:03d}"
     checkin_id = f"{parent_id}-checkin-{checkin_index}"
 
@@ -463,7 +333,7 @@ def checkin(args):
     body = append_to_section(body, CHECKIN_LOG_HEADING, summary_line)
 
     if args.difficulty:
-        diff_count = _int_meta(meta, "difficulty_count") + 1
+        diff_count = int_meta(meta, "difficulty_count") + 1
         set_meta(lines, "difficulty_count", str(diff_count))
         body = append_to_section(
             body,
@@ -474,7 +344,7 @@ def checkin(args):
     set_meta(lines, "checkin_count", str(new_count))
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
 
-    _save(path, lines, body)
+    save_record(path, lines, body)
     print(checkin_path)
 
 
@@ -493,17 +363,17 @@ def log(args):
     if not path.exists():
         path.write_text(render_log_skeleton(target_date.isoformat(), now, args.tags), encoding="utf-8")
 
-    lines, meta, body = _load(path)
+    lines, meta, body = load_record(path)
     body = _append_log_entry(body, time_str, title, args.text)
 
-    new_count = _int_meta(meta, "entry_count") + 1
+    new_count = int_meta(meta, "entry_count") + 1
     set_meta(lines, "entry_count", str(new_count))
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
     if args.tags:
         merged = union_tags(meta.get("tags", "[]"), args.tags)
         set_meta(lines, "tags", merged)
 
-    _save(path, lines, body)
+    save_record(path, lines, body)
     print(path)
 
 
