@@ -186,6 +186,22 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("revisited today", text)
             self.assertIn("## Notes", text)
 
+    def test_scan_peek_does_not_mutate_review_count(self):
+        """P1#8: --peek surfaces dao records without bumping review_count or
+        last_reviewed_at, so a scheduler doesn't masquerade as user reviews."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "an old insight", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            scan = run_cli("scan", "--mode", "oldest", "--limit", "1", "--peek", cwd=tmp)
+            self.assertIn("an old insight", scan.stdout)
+
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("review_count: 0", text)
+            self.assertIn("last_reviewed_at:\n", text)
+            # Confirm output reports current count without bumping
+            self.assertTrue(scan.stdout.startswith("0\t"))
+
     def test_capture_escapes_pseudo_h2_in_raw_text(self):
         """Raw text containing a line `## Notes` must not collide with the
         real ## Notes section; subsequent update --note writes to the real

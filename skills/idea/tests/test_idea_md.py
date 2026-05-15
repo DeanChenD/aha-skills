@@ -153,6 +153,55 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertIn("researching", scan.stdout)
             self.assertIn(str(path), scan.stdout)
 
+    def test_scan_default_marks_last_prompted_at_then_cooldown_skips(self):
+        """P1#8: scan default marks last_prompted_at; subsequent scan within
+        the cooldown window must skip the same idea (prevents cron spam)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli(
+                "capture", "--text", "Cron should not spam this",
+                "--status", "researching",
+                "--next-review-at", "2000-01-01",
+                cwd=tmp,
+            )
+            # First scan surfaces it AND marks last_prompted_at = now
+            scan1 = run_cli("scan", "--stale-days", "7", cwd=tmp)
+            self.assertIn("researching", scan1.stdout)
+
+            # Second scan within cooldown skips the idea
+            scan2 = run_cli("scan", "--stale-days", "7", cwd=tmp)
+            self.assertEqual("", scan2.stdout.strip())
+
+            # --peek surfaces the idea regardless (a human is browsing)
+            scan3 = run_cli(
+                "scan", "--stale-days", "7", "--peek", "--cooldown-hours", "0",
+                cwd=tmp,
+            )
+            self.assertIn("researching", scan3.stdout)
+
+    def test_scan_peek_does_not_mark_last_prompted_at(self):
+        """--peek surfaces without writing last_prompted_at."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli(
+                "capture", "--text", "Peek-only target",
+                "--status", "researching",
+                "--next-review-at", "2000-01-01",
+                cwd=tmp,
+            )
+            path = Path(captured.stdout.strip())
+
+            # Peek scan
+            scan = run_cli(
+                "scan", "--stale-days", "7", "--peek", cwd=tmp,
+            )
+            self.assertIn("researching", scan.stdout)
+
+            # last_prompted_at remains empty
+            text = path.read_text(encoding="utf-8")
+            empty_lines = [
+                ln for ln in text.splitlines() if ln.startswith("last_prompted_at:")
+            ]
+            self.assertEqual(["last_prompted_at:"], empty_lines)
+
     def test_scan_creates_default_idea_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             scan = run_cli("scan", cwd=tmp)

@@ -20,6 +20,7 @@ from aha_md import (  # noqa: E402
     save_record,
     set_meta,
     slugify,
+    split_frontmatter,
     unique_path,
 )
 
@@ -160,6 +161,7 @@ def scan(args):
     ensure_dir(root)
     now = local_now()
     cutoff = now - timedelta(days=args.stale_days)
+    cooldown_until_now = now - timedelta(hours=args.cooldown_hours) if args.cooldown_hours > 0 else None
     rows = []
     for path in sorted(root.rglob("*.md")):
         meta = parse_frontmatter(path)
@@ -172,13 +174,30 @@ def scan(args):
             eligible = status in ACTIVE_STATUSES
         if not eligible:
             continue
+        # Cooldown: skip ideas that were prompted within the cooldown window so a
+        # scheduler doesn't re-surface the same idea every run.
+        last_prompted = parse_dt(meta.get("last_prompted_at"))
+        if cooldown_until_now is not None and last_prompted is not None and last_prompted >= cooldown_until_now:
+            continue
         updated_at = parse_dt(meta.get("updated_at"))
         next_review_at = parse_dt(meta.get("next_review_at"))
         due_for_review = next_review_at is not None and next_review_at <= now
         stale = updated_at is None or updated_at <= cutoff
         if due_for_review or (stale and next_review_at is None):
-            rows.append((status or "unknown", meta.get("updated_at", ""), meta.get("next_review_at", ""), str(path)))
-    for status, updated, next_review, path in rows:
+            rows.append((path, status or "unknown", meta.get("updated_at", ""), meta.get("next_review_at", "")))
+
+    for path, status, updated, next_review in rows:
+        if not args.peek:
+            # Mark this idea as prompted now, so the next scan within
+            # cooldown will skip it (unless the agent calls update --prompted
+            # explicitly; this is the implicit mark for cron contexts).
+            try:
+                lines, body = split_frontmatter(path.read_text(encoding="utf-8"))
+                if lines:
+                    set_meta(lines, "last_prompted_at", now.isoformat(timespec="seconds"))
+                    save_record(path, lines, body)
+            except OSError:
+                pass
         print(f"{status}\t{updated}\t{next_review}\t{path}")
 
 
@@ -203,6 +222,17 @@ def main():
     p_scan.add_argument("--stale-days", type=int, default=7)
     p_scan.add_argument("--include-paused", action="store_true")
     p_scan.add_argument("--include-completed", action="store_true")
+    p_scan.add_argument(
+        "--cooldown-hours", type=int, default=24,
+        help="Skip ideas whose last_prompted_at is within this window. "
+             "Set 0 to disable. Default 24h prevents cron from re-pinging "
+             "the same idea every run.",
+    )
+    p_scan.add_argument(
+        "--peek", action="store_true",
+        help="Surface candidates without updating last_prompted_at. "
+             "Use when a human is browsing (so cron's cooldown isn't burned).",
+    )
     p_scan.set_defaults(func=scan)
 
     p_update = sub.add_parser("update", help="Update idea frontmatter and append logs.")

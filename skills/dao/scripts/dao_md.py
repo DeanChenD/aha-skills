@@ -240,14 +240,20 @@ def scan(args):
     timestamp = now.isoformat(timespec="seconds")
 
     for path, meta, body in selected:
-        new_review = int_meta(meta, "review_count") + 1
-        fm_lines, _ = split_frontmatter(path.read_text(encoding="utf-8"))
-        set_meta(fm_lines, "review_count", str(new_review))
-        set_meta(fm_lines, "last_reviewed_at", timestamp)
-        save_record(path, fm_lines, body)
         title = title_from_body(body)
+        if args.peek:
+            # Surface only — do not mutate review_count / last_reviewed_at.
+            # Use this mode from a scheduler that is just looking, not
+            # representing an actual user re-engagement.
+            review_count = int_meta(meta, "review_count")
+        else:
+            review_count = int_meta(meta, "review_count") + 1
+            fm_lines, _ = split_frontmatter(path.read_text(encoding="utf-8"))
+            set_meta(fm_lines, "review_count", str(review_count))
+            set_meta(fm_lines, "last_reviewed_at", timestamp)
+            save_record(path, fm_lines, body)
         print(
-            f"{new_review}\t{meta.get('updated_at', '')}\t{meta.get('id', '')}\t{path}\t{title}"
+            f"{review_count}\t{meta.get('updated_at', '')}\t{meta.get('id', '')}\t{path}\t{title}"
         )
 
 
@@ -314,6 +320,13 @@ def main():
     p_scan.add_argument("--tag", help="Filter by tag.")
     p_scan.add_argument("--category", help="Filter by primary_category.")
     p_scan.add_argument("--limit", type=int, default=3)
+    p_scan.add_argument(
+        "--peek",
+        action="store_true",
+        help="Surface candidates without bumping review_count / last_reviewed_at. "
+             "Use from a scheduler so cron pings don't masquerade as user reviews "
+             "(--mode least-reviewed otherwise drifts toward 'least cron-touched').",
+    )
     p_scan.set_defaults(func=scan)
 
     p_update = sub.add_parser("update", help="Update dao frontmatter and append notes.")

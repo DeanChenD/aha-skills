@@ -144,7 +144,7 @@ For a scheduled agent run, use the skill as a triage loop:
 Example prompt for a scheduler:
 
 ```text
-Use the idea skill. Scan ./aha-workspace/idea/idea-md for stale or due ideas. For each due idea, choose the next smallest useful action. Update the Markdown file with status, next_review_at, notes, and decision log. Only message me when you need an answer or there is a concrete plan/kill recommendation.
+Use the idea skill. Run `scan --stale-days 7` (default cooldown skips ideas surfaced within the last 24h, preventing re-pings). For each due idea, choose the next smallest useful action. Update the Markdown file with status, next_review_at, notes, and decision log. Only message me when you need an answer or there is a concrete plan/kill recommendation. If I'm browsing interactively, use `--peek` so cron's cooldown isn't burned.
 ```
 
 When running in Hermes, install the skill under `~/.hermes/skills/idea` or configure `skills.external_dirs` to include the directory that contains this skill. Then create a cron job with the `idea` skill attached and `workdir` set to a stable parent directory; the Markdown records live in `<workdir>/aha-workspace/idea/idea-md/`.
