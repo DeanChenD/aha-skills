@@ -8,13 +8,15 @@ Loaded by the `daily` skill when the user wants to record a moment ("记一笔",
    - has a target end-state + a deadline → `task`
    - otherwise → `log`
 
-2. Run:
+2. Run (route raw user text via stdin — `--text "..."` would expand `$(...)`/backticks in the user's content):
    ```bash
-   python3 <skill-dir>/scripts/daily_md.py log \
-     --text "<verbatim>" \
+   printf '%s' "$LOG_TEXT" | python3 <skill-dir>/scripts/daily_md.py log \
+     --text-stdin \
      [--time HH:MM] \
      [--title "<short>"] \
      [--tags "..."]
+   # or:
+   python3 <skill-dir>/scripts/daily_md.py log --text-file ./raw.txt ...
    ```
 
 3. The CLI:

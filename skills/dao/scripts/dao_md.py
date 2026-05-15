@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
+    add_text_input_args,
     append_to_section,
     assert_record_path,
     assert_workspace_path,
@@ -27,6 +28,7 @@ from aha_md import (  # noqa: E402
     read_section,
     render_frontmatter,
     replace_section,
+    resolve_text_input,
     sanitize_single_line,
     save_record,
     set_meta,
@@ -110,15 +112,16 @@ def capture(args):
     root = default_dao_dir()
     ensure_dir(root)
     ensure_workspace_manifest()
+    text = resolve_text_input(args, "text")
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
-    slug = slugify(args.text, fallback="dao")
+    slug = slugify(text, fallback="dao")
     dao_id, path = unique_path(root, f"dao-{stamp}-{slug}")
-    title = args.title or title_from_text(args.text)
+    title = args.title or title_from_text(text)
     body = render_dao_skeleton(
         dao_id,
         title,
-        escape_pseudo_h2(args.text),
+        escape_pseudo_h2(text),
         now,
         args.source,
         args.priority,
@@ -149,7 +152,8 @@ def _do_refine(path, args):
         log_line = f"- {now.date().isoformat()} (v{old_count}): {current_refined}"
         body = append_to_section(body, REFINEMENT_LOG_HEADING, log_line)
 
-    body = replace_section(body, REFINED_HEADING, args.text.strip())
+    text = resolve_text_input(args, "text")
+    body = replace_section(body, REFINED_HEADING, text.strip())
 
     set_meta(lines, "refine_count", str(new_count))
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
@@ -179,9 +183,12 @@ def _do_discuss(path, args):
     session_path = sessions_dir / f"{session_id}.md"
 
     timestamp = now.isoformat(timespec="seconds")
-    safe_topic = escape_pseudo_h2(args.topic)
-    safe_conversation = escape_pseudo_h2(args.conversation)
-    safe_takeaway = escape_pseudo_h2(args.takeaway)
+    topic = resolve_text_input(args, "topic")
+    conversation = resolve_text_input(args, "conversation")
+    takeaway = resolve_text_input(args, "takeaway")
+    safe_topic = escape_pseudo_h2(topic)
+    safe_conversation = escape_pseudo_h2(conversation)
+    safe_takeaway = escape_pseudo_h2(takeaway)
     session_body = f"""---
 session_id: {session_id}
 schema_version: 1
@@ -207,7 +214,7 @@ created_at: {timestamp}
 
     rel_link = (Path("..") / "sessions" / session_path.name).as_posix()
     summary_line = (
-        f"- {now.date().isoformat()}: [Session {session_index}]({rel_link}) — {args.takeaway}"
+        f"- {now.date().isoformat()}: [Session {session_index}]({rel_link}) — {takeaway}"
     )
     body = append_to_section(body, DISCUSSION_HEADING, summary_line)
 
@@ -310,7 +317,7 @@ def main():
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_capture = sub.add_parser("capture", help="Create a Markdown dao record.")
-    p_capture.add_argument("--text", required=True, help="Exact raw insight text.")
+    add_text_input_args(p_capture, "text", required=True, help_text="Exact raw insight text.")
     p_capture.add_argument("--title", help="Optional Markdown title.")
     p_capture.add_argument("--source", default="manual")
     p_capture.add_argument("--priority", choices=["low", "medium", "high"], default="medium")
@@ -323,7 +330,7 @@ def main():
         help="Replace ## Refined; archive old version into ## Refinement Log.",
     )
     p_refine.add_argument("file", help="Markdown dao file to refine.")
-    p_refine.add_argument("--text", required=True, help="New refined text.")
+    add_text_input_args(p_refine, "text", required=True, help_text="New refined text.")
     p_refine.set_defaults(func=refine)
 
     p_discuss = sub.add_parser(
@@ -331,11 +338,9 @@ def main():
         help="Create a session file and append takeaway to main dao file.",
     )
     p_discuss.add_argument("file", help="Markdown dao file.")
-    p_discuss.add_argument("--topic", required=True, help="Discussion topic / prompt.")
-    p_discuss.add_argument("--conversation", required=True, help="Full conversation text.")
-    p_discuss.add_argument(
-        "--takeaway", required=True, help="1-3 sentence takeaway written back to main file."
-    )
+    add_text_input_args(p_discuss, "topic", required=True, help_text="Discussion topic / prompt.")
+    add_text_input_args(p_discuss, "conversation", required=True, help_text="Full conversation text.")
+    add_text_input_args(p_discuss, "takeaway", required=True, help_text="1-3 sentence takeaway written back to main file.")
     p_discuss.set_defaults(func=discuss)
 
     p_scan = sub.add_parser(

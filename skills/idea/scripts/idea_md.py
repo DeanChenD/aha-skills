@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
+    add_text_input_args,
     append_to_section,
     assert_record_path,
     assert_workspace_path,
@@ -23,6 +24,7 @@ from aha_md import (  # noqa: E402
     parse_dt,
     parse_frontmatter,
     render_frontmatter,
+    resolve_text_input,
     sanitize_single_line,
     save_record,
     set_meta,
@@ -63,14 +65,15 @@ def capture(args):
     root = default_idea_dir()
     ensure_dir(root)
     ensure_workspace_manifest()
+    text = resolve_text_input(args, "text")
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
-    slug = slugify(args.text, fallback="idea")
+    slug = slugify(text, fallback="idea")
     idea_id, path = unique_path(root, f"idea-{stamp}-{slug}")
-    title = args.title or title_from_text(args.text)
+    title = args.title or title_from_text(text)
     timestamp = now.isoformat(timespec="seconds")
     next_review_at = normalize_datetime(args.next_review_at)
-    raw_text_safe = escape_pseudo_h2(args.text)
+    raw_text_safe = escape_pseudo_h2(text)
     safe_title = escape_pseudo_h2(sanitize_single_line(title))
     frontmatter = render_frontmatter([
         ("id", idea_id),
@@ -223,7 +226,7 @@ def main():
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_capture = sub.add_parser("capture", help="Create a Markdown idea record.")
-    p_capture.add_argument("--text", required=True, help="Exact raw idea text.")
+    add_text_input_args(p_capture, "text", required=True, help_text="Exact raw idea text.")
     p_capture.add_argument("--title", help="Optional Markdown title.")
     p_capture.add_argument("--status", choices=sorted(STATUSES), default="inbox")
     p_capture.add_argument("--source", default="manual")

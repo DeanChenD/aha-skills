@@ -29,7 +29,12 @@ Keep one Markdown file per idea. Preserve the raw idea text exactly as given and
 Use `scripts/idea_md.py` for deterministic file creation and stale-idea scans (run from the workspace parent so `./aha-workspace/...` resolves correctly):
 
 ```bash
-python3 <skill-dir>/scripts/idea_md.py capture --text "<raw idea>" --source chat
+# Preferred for raw user text: pipe via stdin (never inline raw text into
+# shell quotes — content with $(...) / backticks would otherwise execute).
+printf '%s' "$RAW_IDEA" | python3 <skill-dir>/scripts/idea_md.py capture --text-stdin --source chat
+# or read from a file:
+python3 <skill-dir>/scripts/idea_md.py capture --text-file ./raw.txt --source chat
+
 python3 <skill-dir>/scripts/idea_md.py scan --stale-days 7 --include-paused
 python3 <skill-dir>/scripts/idea_md.py update ./aha-workspace/idea/idea-md/<file>.md --status planning --decision "Ready for a concrete plan." --bump-review
 ```

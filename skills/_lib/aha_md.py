@@ -146,6 +146,54 @@ def sanitize_single_line(value):
     return s
 
 
+def add_text_input_args(parser, name, *, required=True, help_text=""):
+    """Register ``--<name>`` / ``--<name>-stdin`` / ``--<name>-file`` as a
+    mutually-exclusive group on ``parser``.
+
+    Capture / refine / log commands accept large free-form blobs of user
+    text. SKILL.md examples that inline that text into a shell-quoted
+    string (``--text "$RAW"``) are a real injection surface: an LLM
+    rendering the command for raw containing ``$(whoami)`` or backticks
+    would execute it. Stdin and file inputs do not pass through the
+    shell, so docs can route untrusted text via these channels.
+
+    The legacy ``--<name>`` string flag is preserved so existing scripts
+    and tests keep working; new docs should prefer ``-stdin`` /
+    ``-file``.
+    """
+    grp = parser.add_mutually_exclusive_group(required=required)
+    grp.add_argument(f"--{name}", help=help_text)
+    grp.add_argument(
+        f"--{name}-stdin", action="store_true",
+        help=f"Read {name} from stdin (preferred for untrusted text).",
+    )
+    grp.add_argument(
+        f"--{name}-file",
+        help=f"Read {name} from a file path (alternative to --{name}-stdin).",
+    )
+
+
+def resolve_text_input(args, name):
+    """Resolve the text resolved by ``add_text_input_args`` into a string.
+
+    Returns the literal value when ``--<name>`` is set, the contents of
+    stdin when ``--<name>-stdin`` is set, or the file contents when
+    ``--<name>-file`` is set. Returns ``None`` if none of the three is
+    present (only possible when the group was registered with
+    ``required=False``).
+    """
+    underscore = name.replace("-", "_")
+    val = getattr(args, underscore, None)
+    if val is not None:
+        return val
+    if getattr(args, f"{underscore}_stdin", False):
+        return sys.stdin.read()
+    file_path = getattr(args, f"{underscore}_file", None)
+    if file_path:
+        return Path(file_path).read_text(encoding="utf-8")
+    return None
+
+
 def render_frontmatter(pairs):
     """Render an ordered list of (key, value) pairs as a complete frontmatter
     block, with every value passed through ``sanitize_single_line`` first.

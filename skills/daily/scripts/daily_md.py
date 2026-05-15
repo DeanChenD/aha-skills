@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
+    add_text_input_args,
     append_to_section,
     assert_record_path,
     assert_workspace_path,
@@ -28,6 +29,7 @@ from aha_md import (  # noqa: E402
     period_range,
     read_section,
     render_frontmatter,
+    resolve_text_input,
     sanitize_single_line,
     save_record,
     set_meta,
@@ -247,16 +249,17 @@ def task(args):
     root = default_tasks_dir()
     ensure_dir(root)
     ensure_workspace_manifest()
+    text = resolve_text_input(args, "text")
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
-    slug = slugify(args.text, fallback="task")
+    slug = slugify(text, fallback="task")
     task_id, path = unique_path(root, f"task-{stamp}-{slug}")
-    title = args.title or title_from_text(args.text)
+    title = args.title or title_from_text(text)
     due_iso = parse_due(args.due) if args.due else ""
     body = render_task_skeleton(
         task_id,
         title,
-        escape_pseudo_h2(args.text),
+        escape_pseudo_h2(text),
         now,
         due_iso,
         args.priority,
@@ -340,6 +343,12 @@ def _do_checkin(path, args):
     checkin_index = f"{new_count:03d}"
     checkin_id = f"{parent_id}-checkin-{checkin_index}"
 
+    topic = resolve_text_input(args, "topic")
+    conversation = resolve_text_input(args, "conversation")
+    takeaway = resolve_text_input(args, "takeaway")
+    difficulty = resolve_text_input(args, "difficulty")
+    next_step = resolve_text_input(args, "next-step")
+
     checkins_dir = default_checkins_dir()
     ensure_dir(checkins_dir)
     checkin_path = checkins_dir / f"{checkin_id}.md"
@@ -349,27 +358,27 @@ def _do_checkin(path, args):
             checkin_id,
             parent_id,
             now,
-            args.topic,
-            args.conversation,
-            args.takeaway,
-            args.difficulty,
-            args.next_step,
+            topic,
+            conversation,
+            takeaway,
+            difficulty,
+            next_step,
         ),
     )
 
     rel_link = (Path("..") / "check-ins" / checkin_path.name).as_posix()
     summary_line = (
-        f"- {now.date().isoformat()}: [Check-in {checkin_index}]({rel_link}) — {args.takeaway}"
+        f"- {now.date().isoformat()}: [Check-in {checkin_index}]({rel_link}) — {takeaway}"
     )
     body = append_to_section(body, CHECKIN_LOG_HEADING, summary_line)
 
-    if args.difficulty:
+    if difficulty:
         diff_count = int_meta(meta, "difficulty_count") + 1
         set_meta(lines, "difficulty_count", str(diff_count))
         body = append_to_section(
             body,
             DIFFICULTY_LOG_HEADING,
-            f"- {now.date().isoformat()} (check-in {checkin_index}): {args.difficulty}",
+            f"- {now.date().isoformat()} (check-in {checkin_index}): {difficulty}",
         )
 
     set_meta(lines, "checkin_count", str(new_count))
@@ -383,13 +392,14 @@ def log(args):
     root = default_logs_dir()
     ensure_dir(root)
     ensure_workspace_manifest()
+    text = resolve_text_input(args, "text")
     now = local_now()
 
     target_date = parse_date_arg(args.date) if args.date else now.date()
     target_time = parse_time_arg(args.time) if args.time else now.time()
     time_str = target_time.strftime("%H:%M")
 
-    title = args.title.strip() if args.title else " ".join(args.text.strip().split())[:40] or "无题"
+    title = args.title.strip() if args.title else " ".join(text.strip().split())[:40] or "无题"
 
     path = root / f"log-{target_date.isoformat()}.md"
 
@@ -401,7 +411,7 @@ def log(args):
         if not path.exists():
             atomic_write(path, render_log_skeleton(target_date.isoformat(), now, args.tags))
         lines, meta, body = load_record(path)
-        body = _append_log_entry(body, time_str, title, args.text)
+        body = _append_log_entry(body, time_str, title, text)
 
         new_count = int_meta(meta, "entry_count") + 1
         set_meta(lines, "entry_count", str(new_count))
@@ -735,7 +745,7 @@ def main():
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_task = sub.add_parser("task", help="Create a Markdown task record.")
-    p_task.add_argument("--text", required=True, help="Task description (raw user text).")
+    add_text_input_args(p_task, "text", required=True, help_text="Task description (raw user text).")
     p_task.add_argument("--title", help="Optional Markdown title.")
     p_task.add_argument("--due", help="YYYY-MM-DD or YYYY-MM-DDTHH:MM(:SS)")
     p_task.add_argument("--source", default="manual")
@@ -763,15 +773,15 @@ def main():
         "checkin", help="Log a stage-by-stage check-in for a task."
     )
     p_checkin.add_argument("file", help="Markdown task file.")
-    p_checkin.add_argument("--topic", required=True)
-    p_checkin.add_argument("--conversation", required=True)
-    p_checkin.add_argument("--takeaway", required=True)
-    p_checkin.add_argument("--difficulty", help="Optional surfaced difficulty (also appended to Difficulty Log).")
-    p_checkin.add_argument("--next-step", dest="next_step", help="Optional next concrete step.")
+    add_text_input_args(p_checkin, "topic", required=True)
+    add_text_input_args(p_checkin, "conversation", required=True)
+    add_text_input_args(p_checkin, "takeaway", required=True)
+    add_text_input_args(p_checkin, "difficulty", required=False, help_text="Optional surfaced difficulty (also appended to Difficulty Log).")
+    add_text_input_args(p_checkin, "next-step", required=False, help_text="Optional next concrete step.")
     p_checkin.set_defaults(func=checkin)
 
     p_log = sub.add_parser("log", help="Append a daily log entry to today's (or --date) log file.")
-    p_log.add_argument("--text", required=True)
+    add_text_input_args(p_log, "text", required=True)
     p_log.add_argument("--title")
     p_log.add_argument("--time", help="HH:MM (defaults to now).")
     p_log.add_argument("--date", help="YYYY-MM-DD (defaults to today, local).")

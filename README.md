@@ -280,4 +280,5 @@ python3 skills/reflect/tests/test_reflect_md.py
 - 用户原文里的 `## Foo` 在写入时被转义为 `\## Foo`（CommonMark 渲染等同），章节定位是 line-based + fence-aware，不会被 raw text 里的伪标题误导。
 - frontmatter 与章节单行的自由文本字段（`--note` / `--decision` / `--difficulty` 等）会把 `\n` 转为 ↵ 标记，防止 row-injection 伪造 `status: dropped` 等。
 - 新增 skill 沿用同款骨架：`SKILL.md`，可选 `scripts/`、`tests/`、`references/`；从 `skills/_lib/aha_md.py` 复用所有原语。
+- **shell 注入面**：所有接收原始用户文本的子命令（`capture --text`、`task --text`、`log --text`、`refine --text`、`discuss --conversation` 等）都额外提供 `--<name>-stdin` / `--<name>-file` 入口。**agent 在拼 bash 命令时永远走 stdin / file**——把 `$(...)` / 反引号 / 管道字符直接嵌进 `--text "..."` 双引号会被 shell 解释执行。README 的 quick-start 示例为了简洁仍写 `--text "..."`，**仅当文本是静态字面量时使用**。
 

@@ -30,10 +30,13 @@ Always store dao records under the current working directory:
 Create both directories automatically before any operation. Use `scripts/dao_md.py` for deterministic file creation, refinement, discussion logging, and review scans:
 
 ```bash
-python3 <skill-dir>/scripts/dao_md.py capture --text "<raw insight>"
-python3 <skill-dir>/scripts/dao_md.py refine ./aha-workspace/dao/dao-md/<file>.md --text "<new refined>"
+# Raw user text → stdin / file (never inline into shell quotes; user text
+# may contain $(...), backticks, etc. that would execute).
+printf '%s' "$RAW" | python3 <skill-dir>/scripts/dao_md.py capture --text-stdin
+printf '%s' "$REFINED" | python3 <skill-dir>/scripts/dao_md.py refine ./aha-workspace/dao/dao-md/<file>.md --text-stdin
 python3 <skill-dir>/scripts/dao_md.py discuss ./aha-workspace/dao/dao-md/<file>.md \
-    --topic "<theme>" --conversation "<multi-turn dialogue>" --takeaway "<1-3 sentences>"
+    --topic-file ./topic.txt --conversation-file ./conv.txt --takeaway-file ./takeaway.txt
+
 python3 <skill-dir>/scripts/dao_md.py scan --mode random --limit 3
 python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.md --note "<context>"
 ```
