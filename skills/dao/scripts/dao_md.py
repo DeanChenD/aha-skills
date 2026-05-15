@@ -64,6 +64,7 @@ def render_dao_skeleton(dao_id, title, raw_text, now, source, priority, category
     timestamp = now.isoformat(timespec="seconds")
     return f"""---
 id: {dao_id}
+schema_version: 1
 created_at: {timestamp}
 updated_at: {timestamp}
 last_reviewed_at:
@@ -164,6 +165,7 @@ def discuss(args):
     safe_takeaway = escape_pseudo_h2(args.takeaway)
     session_body = f"""---
 session_id: {session_id}
+schema_version: 1
 parent_dao_id: {parent_id}
 created_at: {timestamp}
 ---

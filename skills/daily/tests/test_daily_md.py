@@ -66,6 +66,7 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertIn("checkin_count: 0", text)
             self.assertIn("Write the v1 spec", text)
             self.assertIn("## Description", text)
+            self.assertIn("schema_version: 1", text)
 
     def test_update_status_done_sets_completed_at(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -188,6 +189,7 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertIn('tags: ["mood"]', text)
             self.assertIn("## 08:00 — Morning", text)
             self.assertIn("Got up early, feeling sharp", text)
+            self.assertIn("schema_version: 1", text)
 
     def test_log_second_entry_appends_to_same_file_and_unions_tags(self):
         with tempfile.TemporaryDirectory() as tmp:

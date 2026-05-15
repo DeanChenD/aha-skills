@@ -142,6 +142,7 @@ def render_task_skeleton(task_id, title, description, now, due_at_iso, priority,
     timestamp = now.isoformat(timespec="seconds")
     return f"""---
 id: {task_id}
+schema_version: 1
 type: task
 status: pending
 created_at: {timestamp}
@@ -177,6 +178,7 @@ def render_log_skeleton(date_str, now, tags):
     timestamp = now.isoformat(timespec="seconds")
     return f"""---
 date: {date_str}
+schema_version: 1
 type: log
 created_at: {timestamp}
 updated_at: {timestamp}
@@ -197,6 +199,7 @@ def render_checkin_body(checkin_id, parent_task_id, now, topic, conversation, ta
     safe_next = escape_pseudo_h2(next_step.strip()) if next_step else "(none)"
     return f"""---
 checkin_id: {checkin_id}
+schema_version: 1
 parent_task_id: {parent_task_id}
 created_at: {timestamp}
 ---

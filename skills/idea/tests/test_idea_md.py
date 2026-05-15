@@ -63,6 +63,7 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertIn('tags: ["idea", "research"]', text)
             self.assertIn("next_review_at: 2026-05-13T00:00:00", text)
             self.assertIn("Build a tiny idea inbox", text)
+            self.assertIn("schema_version: 1", text)
 
     def test_capture_uses_hash_slug_when_text_has_no_ascii_words(self):
         raw = "灵感捕获"

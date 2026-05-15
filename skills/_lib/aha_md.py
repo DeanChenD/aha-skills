@@ -289,12 +289,51 @@ def assert_workspace_path(path, skill_name):
         )
 
 
-def load_record(path):
+CURRENT_SCHEMA_VERSION = 1
+
+
+def assert_schema_version(meta, path=None, expected=CURRENT_SCHEMA_VERSION):
+    """Validate frontmatter `schema_version` against expected.
+
+    Behavior:
+    - Missing schema_version: warn to stderr (treated as legacy v1, accepted).
+      Avoids breaking existing user data captured before this field was written.
+    - Mismatched schema_version (e.g. 2 when expected 1): SystemExit. The
+      writer is from a newer/older skill version that may not have the same
+      field semantics; refuse rather than silently degrade.
+    """
+    raw = meta.get("schema_version")
+    if not raw:
+        import sys as _sys
+        location = f" ({path})" if path else ""
+        print(
+            f"warning: missing schema_version in frontmatter{location}; "
+            f"treating as v{expected} (legacy file).",
+            file=_sys.stderr,
+        )
+        return
+    try:
+        actual = int(raw)
+    except (TypeError, ValueError):
+        raise SystemExit(
+            f"Unparseable schema_version: {raw!r}"
+            + (f" in {path}" if path else "")
+        )
+    if actual != expected:
+        raise SystemExit(
+            f"Unsupported schema_version: got {actual}, expected {expected}"
+            + (f" in {path}" if path else "")
+            + "."
+        )
+
+
+def load_record(path, expected_schema_version=CURRENT_SCHEMA_VERSION):
     text = Path(path).read_text(encoding="utf-8")
     lines, body = split_frontmatter(text)
     if not lines:
         raise SystemExit(f"Missing frontmatter: {path}")
     meta = parse_frontmatter_lines(lines)
+    assert_schema_version(meta, path=path, expected=expected_schema_version)
     return lines, meta, body
 
 

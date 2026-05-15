@@ -13,12 +13,13 @@ from aha_md import (  # noqa: E402
     escape_pseudo_h2,
     format_tags,
     int_meta,
+    load_record,
     local_now,
     parse_dt,
     parse_frontmatter,
+    save_record,
     set_meta,
     slugify,
-    split_frontmatter,
     unique_path,
 )
 
@@ -63,6 +64,7 @@ def capture(args):
     raw_text_safe = escape_pseudo_h2(args.text)
     body = f"""---
 id: {idea_id}
+schema_version: 1
 status: {args.status}
 created_at: {timestamp}
 updated_at: {timestamp}
@@ -122,15 +124,7 @@ TBD
 def update(args):
     path = Path(args.file).expanduser().resolve()
     assert_workspace_path(path, "idea")
-    text = path.read_text(encoding="utf-8")
-    lines, body = split_frontmatter(text)
-    if not lines:
-        raise SystemExit(f"Missing frontmatter: {path}")
-    meta = {}
-    for line in lines:
-        if ":" in line:
-            key, value = line.split(":", 1)
-            meta[key.strip()] = value.strip()
+    lines, meta, body = load_record(path)
 
     now = local_now()
     if args.status:
@@ -157,7 +151,7 @@ def update(args):
     if args.note:
         body = append_to_section(body, "Notes", f"- {now.date().isoformat()}: {args.note}")
 
-    path.write_text("---\n" + "\n".join(lines) + "\n---\n" + body, encoding="utf-8")
+    save_record(path, lines, body)
     print(path)
 
 

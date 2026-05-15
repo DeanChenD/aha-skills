@@ -63,6 +63,7 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("## Raw 原始感悟", text)
             self.assertIn("## Refined 提炼沉淀", text)
             self.assertIn("TBD", text)
+            self.assertIn("schema_version: 1", text)
 
     def test_capture_uses_hash_slug_for_non_ascii_text(self):
         raw = "今日悟得"

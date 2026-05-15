@@ -205,5 +205,42 @@ class AssertWorkspacePathTest(unittest.TestCase):
             aha_md.assert_workspace_path(target, "daily")
 
 
+class SchemaVersionTest(unittest.TestCase):
+    def test_assert_v1_passes(self):
+        aha_md.assert_schema_version({"schema_version": "1"})
+
+    def test_assert_unsupported_raises(self):
+        with self.assertRaises(SystemExit) as cm:
+            aha_md.assert_schema_version({"schema_version": "999"})
+        self.assertIn("Unsupported schema_version", str(cm.exception))
+
+    def test_assert_unparseable_raises(self):
+        with self.assertRaises(SystemExit) as cm:
+            aha_md.assert_schema_version({"schema_version": "abc"})
+        self.assertIn("Unparseable schema_version", str(cm.exception))
+
+    def test_assert_missing_warns_but_passes(self):
+        # No raise — legacy file path is tolerated with a stderr warning
+        aha_md.assert_schema_version({})
+
+    def test_load_record_strict_on_unsupported_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.md"
+            path.write_text(
+                "---\nid: x\nschema_version: 99\n---\n# X\n", encoding="utf-8"
+            )
+            with self.assertRaises(SystemExit):
+                aha_md.load_record(path)
+
+    def test_load_record_accepts_v1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.md"
+            path.write_text(
+                "---\nid: x\nschema_version: 1\n---\n# X\n", encoding="utf-8"
+            )
+            lines, meta, body = aha_md.load_record(path)
+            self.assertEqual("1", meta["schema_version"])
+
+
 if __name__ == "__main__":
     unittest.main()
