@@ -45,3 +45,7 @@ ENV/
 *.log
 *.tmp
 .cache/
+
+# Local audit / backlog notes (private; not committed)
+docs/audit-*.md
+docs/backlog-*.md
