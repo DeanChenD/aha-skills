@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     append_to_section,
+    assert_workspace_path,
     ensure_dir,
     format_tags,
     int_meta,
@@ -118,6 +119,7 @@ TBD
 
 def update(args):
     path = Path(args.file).expanduser().resolve()
+    assert_workspace_path(path, "idea")
     text = path.read_text(encoding="utf-8")
     lines, body = split_frontmatter(text)
     if not lines:

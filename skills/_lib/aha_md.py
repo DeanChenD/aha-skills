@@ -206,6 +206,29 @@ def unique_path(root, base_id):
     return candidate_id, candidate_path
 
 
+def assert_workspace_path(path, skill_name):
+    """Reject paths outside aha-workspace/<skill_name>/.
+
+    Enforces the README invariant that a skill at runtime never writes
+    outside its own workspace. Without this check, an agent given a malicious
+    or mistaken path argument could mutate any .md file on disk via the
+    update/refine/checkin/discuss commands.
+
+    The workspace root is resolved relative to the current working directory,
+    matching how default_*_dir() helpers in each skill compute their paths.
+    """
+    workspace_root = (Path.cwd() / WORKSPACE_DIR_NAME / skill_name).resolve()
+    target = Path(path).expanduser().resolve()
+    try:
+        target.relative_to(workspace_root)
+    except ValueError:
+        raise SystemExit(
+            f"Refusing to operate outside skill workspace.\n"
+            f"  expected under: {workspace_root}\n"
+            f"  got: {target}"
+        )
+
+
 def load_record(path):
     text = Path(path).read_text(encoding="utf-8")
     lines, body = split_frontmatter(text)

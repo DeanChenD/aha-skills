@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     append_to_section,
+    assert_workspace_path,
     ensure_dir,
     format_tags,
     int_meta,
@@ -120,6 +121,7 @@ def capture(args):
 
 def refine(args):
     path = Path(args.file).expanduser().resolve()
+    assert_workspace_path(path, "dao")
     lines, meta, body = load_record(path)
     now = local_now()
 
@@ -142,6 +144,7 @@ def refine(args):
 
 def discuss(args):
     path = Path(args.file).expanduser().resolve()
+    assert_workspace_path(path, "dao")
     lines, meta, body = load_record(path)
     now = local_now()
 
@@ -244,6 +247,7 @@ def scan(args):
 
 def update(args):
     path = Path(args.file).expanduser().resolve()
+    assert_workspace_path(path, "dao")
     lines, _meta, body = load_record(path)
     now = local_now()
 

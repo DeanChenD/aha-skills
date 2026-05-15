@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     append_to_section,
+    assert_workspace_path,
     ensure_dir,
     format_tags,
     int_meta,
@@ -252,6 +253,7 @@ def task(args):
 
 def update(args):
     path = Path(args.file).expanduser().resolve()
+    assert_workspace_path(path, "daily")
     lines, meta, body = load_record(path)
     now = local_now()
 
@@ -301,6 +303,7 @@ def update(args):
 
 def checkin(args):
     path = Path(args.file).expanduser().resolve()
+    assert_workspace_path(path, "daily")
     lines, meta, body = load_record(path)
     now = local_now()
 

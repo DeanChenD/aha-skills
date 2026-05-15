@@ -185,6 +185,28 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("revisited today", text)
             self.assertIn("## Notes", text)
 
+    def test_update_refuses_path_outside_dao_workspace(self):
+        """End-to-end: update against a .md outside aha-workspace/dao/ must
+        exit non-zero (the CLI calls assert_workspace_path)."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create a file outside the dao workspace (could be a source file,
+            # README, etc) — the agent should not be able to mutate it.
+            outside = Path(tmp) / "evil.md"
+            outside.write_text("---\nid: evil\n---\n# Evil\n## Notes\n", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "update", str(outside), "--note", "pwned"],
+                capture_output=True, text=True, cwd=tmp,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("outside skill workspace", result.stderr)
+            # And the file content is unchanged
+            self.assertEqual(
+                "---\nid: evil\n---\n# Evil\n## Notes\n",
+                outside.read_text(encoding="utf-8"),
+            )
+
     def test_update_note_with_newline_cannot_forge_frontmatter_or_section(self):
         """End-to-end injection guard: --note containing \\n + frontmatter
         line OR \\n## heading must not be able to mutate frontmatter or split

@@ -1,7 +1,9 @@
 """Unit tests for skills/_lib/aha_md.py shared primitives."""
 
 import importlib.util
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -81,6 +83,52 @@ class AppendToSectionInjectionTest(unittest.TestCase):
         body2 = aha_md.append_to_section(body, "Notes", "- 2026-05-15: clean")
         self.assertIn("- 2026-05-15: clean", body2)
         self.assertNotIn("↵", body2)
+
+
+class AssertWorkspacePathTest(unittest.TestCase):
+    def _with_cwd(self, new_cwd):
+        self._original_cwd = os.getcwd()
+        os.chdir(new_cwd)
+
+    def tearDown(self):
+        if hasattr(self, "_original_cwd"):
+            os.chdir(self._original_cwd)
+
+    def test_path_inside_workspace_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._with_cwd(tmp)
+            target = Path(tmp) / "aha-workspace" / "dao" / "dao-md" / "x.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("ok", encoding="utf-8")
+            # Should not raise
+            aha_md.assert_workspace_path(target, "dao")
+
+    def test_path_in_wrong_skill_workspace_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._with_cwd(tmp)
+            target = Path(tmp) / "aha-workspace" / "idea" / "idea-md" / "x.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("ok", encoding="utf-8")
+            with self.assertRaises(SystemExit) as cm:
+                aha_md.assert_workspace_path(target, "dao")
+            self.assertIn("outside skill workspace", str(cm.exception))
+
+    def test_arbitrary_path_outside_workspace_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._with_cwd(tmp)
+            outside = Path(tmp) / "evil.md"
+            outside.write_text("attacker", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                aha_md.assert_workspace_path(outside, "daily")
+
+    def test_relative_path_resolved_against_cwd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._with_cwd(tmp)
+            target = Path("aha-workspace") / "daily" / "tasks" / "task-x.md"
+            (Path(tmp) / target.parent).mkdir(parents=True, exist_ok=True)
+            (Path(tmp) / target).write_text("ok", encoding="utf-8")
+            # Relative path must still be accepted when it resolves under workspace
+            aha_md.assert_workspace_path(target, "daily")
 
 
 if __name__ == "__main__":
