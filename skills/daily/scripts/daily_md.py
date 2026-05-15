@@ -11,7 +11,9 @@ from aha_md import (  # noqa: E402
     append_to_section,
     assert_workspace_path,
     atomic_write,
+    check_manifest_consistency,
     ensure_dir,
+    ensure_workspace_manifest,
     escape_pseudo_h2,
     format_tags,
     int_meta,
@@ -30,14 +32,9 @@ from aha_md import (  # noqa: E402
     split_frontmatter,
     title_from_body,
     unique_path,
+    workspace_dir,
 )
 
-
-DAILY_ROOT_RELATIVE = Path(WORKSPACE_DIR_NAME) / "daily"
-TASKS_DIR_RELATIVE = DAILY_ROOT_RELATIVE / "tasks"
-LOGS_DIR_RELATIVE = DAILY_ROOT_RELATIVE / "logs"
-CHECKINS_DIR_RELATIVE = DAILY_ROOT_RELATIVE / "check-ins"
-REVIEWS_DIR_RELATIVE = DAILY_ROOT_RELATIVE / "reviews"
 
 TASKS_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/daily/tasks"
 
@@ -70,19 +67,19 @@ def title_from_text(text):
 
 
 def default_tasks_dir():
-    return (Path.cwd() / TASKS_DIR_RELATIVE).resolve()
+    return workspace_dir("daily", "tasks")
 
 
 def default_logs_dir():
-    return (Path.cwd() / LOGS_DIR_RELATIVE).resolve()
+    return workspace_dir("daily", "logs")
 
 
 def default_checkins_dir():
-    return (Path.cwd() / CHECKINS_DIR_RELATIVE).resolve()
+    return workspace_dir("daily", "check-ins")
 
 
 def default_reviews_dir():
-    return (Path.cwd() / REVIEWS_DIR_RELATIVE).resolve()
+    return workspace_dir("daily", "reviews")
 
 
 def union_tags(existing_json_str, new_csv):
@@ -241,6 +238,7 @@ def _append_log_entry(body, time_str, title, text):
 def task(args):
     root = default_tasks_dir()
     ensure_dir(root)
+    ensure_workspace_manifest()
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
     slug = slugify(args.text, fallback="task")
@@ -376,6 +374,7 @@ def _do_checkin(path, args):
 def log(args):
     root = default_logs_dir()
     ensure_dir(root)
+    ensure_workspace_manifest()
     now = local_now()
 
     target_date = parse_date_arg(args.date) if args.date else now.date()
@@ -793,6 +792,7 @@ def main():
     p_scan.set_defaults(func=scan)
 
     args = parser.parse_args()
+    check_manifest_consistency()
     args.func(args)
 
 

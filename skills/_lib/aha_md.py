@@ -282,10 +282,10 @@ def assert_workspace_path(path, skill_name):
     or mistaken path argument could mutate any .md file on disk via the
     update/refine/checkin/discuss commands.
 
-    The workspace root is resolved relative to the current working directory,
-    matching how default_*_dir() helpers in each skill compute their paths.
+    Workspace root is resolved via workspace_anchor() so a manifest in a
+    parent directory binds correctly when running from a subdir.
     """
-    workspace_root = (Path.cwd() / WORKSPACE_DIR_NAME / skill_name).resolve()
+    workspace_root = workspace_dir(skill_name)
     target = Path(path).expanduser().resolve()
     try:
         target.relative_to(workspace_root)
@@ -298,6 +298,115 @@ def assert_workspace_path(path, skill_name):
 
 
 CURRENT_SCHEMA_VERSION = 1
+
+
+def _current_tz_str():
+    """Return current local TZ as +HH:MM."""
+    raw = datetime.now().astimezone().strftime("%z")
+    if len(raw) == 5:
+        return f"{raw[:3]}:{raw[3:]}"
+    return raw or ""
+
+
+def workspace_anchor():
+    """Find the directory containing aha-workspace/.
+
+    Walks up from cwd looking for `<dir>/aha-workspace/.manifest.json`. The
+    manifest (not the bare directory) is the canonical sentinel so tests in
+    sibling tempdirs do not accidentally bind to an unrelated workspace.
+
+    Stops at $HOME so a stray system-level manifest cannot be picked up.
+    Falls back to cwd if nothing is found — first-time users get a workspace
+    at their current directory.
+    """
+    here = Path.cwd().resolve()
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
+    for candidate in [here, *here.parents]:
+        manifest = candidate / WORKSPACE_DIR_NAME / ".manifest.json"
+        if manifest.exists():
+            return candidate
+        if home is not None and candidate == home:
+            break
+    return here
+
+
+def workspace_dir(*subpath):
+    """Resolve a path under the workspace, anchored via workspace_anchor()."""
+    anchor = workspace_anchor()
+    return (anchor / WORKSPACE_DIR_NAME / Path(*subpath)).resolve()
+
+
+def _manifest_path():
+    return workspace_anchor() / WORKSPACE_DIR_NAME / ".manifest.json"
+
+
+def _read_manifest():
+    p = _manifest_path()
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def ensure_workspace_manifest():
+    """Create the manifest at <workspace>/.manifest.json if missing.
+
+    Called from the first write of each session — capture creates the
+    workspace data, this stamps a manifest so future invocations have a
+    canonical anchor for cross-machine / TZ checks. Idempotent.
+    """
+    import socket
+    p = _manifest_path()
+    if p.exists():
+        return
+    p.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        host = socket.gethostname() or "unknown"
+    except OSError:
+        host = "unknown"
+    payload = {
+        "schema_version": CURRENT_SCHEMA_VERSION,
+        "timezone": _current_tz_str(),
+        "host_id": host,
+        "created_at": local_now().isoformat(timespec="seconds"),
+    }
+    atomic_write(p, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+
+
+def check_manifest_consistency():
+    """Read the manifest (if present) and stderr-warn on TZ or schema drift.
+
+    Safe to call from any CLI main(). Silent when no manifest exists or when
+    everything matches.
+    """
+    manifest = _read_manifest()
+    if manifest is None:
+        return
+    import sys as _sys
+    expected_tz = manifest.get("timezone")
+    cur_tz = _current_tz_str()
+    if expected_tz and expected_tz != cur_tz:
+        print(
+            f"warning: workspace timezone mismatch ({manifest.get('host_id')} "
+            f"created with {expected_tz}, current host is {cur_tz}). "
+            "Period boundaries (today / this week / this month) may shift.",
+            file=_sys.stderr,
+        )
+    expected_schema = manifest.get("schema_version")
+    try:
+        if expected_schema is not None and int(expected_schema) != CURRENT_SCHEMA_VERSION:
+            print(
+                f"warning: workspace schema_version is {expected_schema}, "
+                f"current CLI uses {CURRENT_SCHEMA_VERSION}.",
+                file=_sys.stderr,
+            )
+    except (TypeError, ValueError):
+        pass
 
 
 def assert_schema_version(meta, path=None, expected=CURRENT_SCHEMA_VERSION):

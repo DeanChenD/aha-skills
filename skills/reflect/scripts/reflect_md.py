@@ -21,7 +21,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     atomic_write,
+    check_manifest_consistency,
     ensure_dir,
+    ensure_workspace_manifest,
     local_now,
     parse_dt,
     parse_frontmatter_lines,
@@ -32,15 +34,10 @@ from aha_md import (  # noqa: E402
     split_frontmatter,
     title_from_body,
     unique_path,
+    workspace_dir,
 )
 
 
-WORKSPACE_ROOT = Path(WORKSPACE_DIR_NAME)
-IDEA_DIR_RELATIVE = WORKSPACE_ROOT / "idea" / "idea-md"
-DAO_DIR_RELATIVE = WORKSPACE_ROOT / "dao" / "dao-md"
-DAILY_TASKS_DIR_RELATIVE = WORKSPACE_ROOT / "daily" / "tasks"
-DAILY_LOGS_DIR_RELATIVE = WORKSPACE_ROOT / "daily" / "logs"
-REFLECT_DIR_RELATIVE = WORKSPACE_ROOT / "reflect" / "reflections"
 REFLECT_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/reflect/reflections"
 
 PERIODS = ("day", "week", "month")
@@ -51,8 +48,24 @@ DIFFICULTY_LINE_RE = re.compile(
 )
 
 
-def _resolve(rel):
-    return (Path.cwd() / rel).resolve()
+def _idea_dir():
+    return workspace_dir("idea", "idea-md")
+
+
+def _dao_dir():
+    return workspace_dir("dao", "dao-md")
+
+
+def _daily_tasks_dir():
+    return workspace_dir("daily", "tasks")
+
+
+def _daily_logs_dir():
+    return workspace_dir("daily", "logs")
+
+
+def _reflect_dir():
+    return workspace_dir("reflect", "reflections")
 
 
 def _parse_frontmatter_with_body(path):
@@ -97,7 +110,7 @@ def load_records(source, start, end):
     """Yield (source_label, sub_type, meta, body, path) for records in range."""
     out = []
     if source in ("idea", "all"):
-        root = _resolve(IDEA_DIR_RELATIVE)
+        root = _idea_dir()
         if root.is_dir():
             for path in sorted(root.rglob("*.md")):
                 meta, body = _parse_frontmatter_with_body(path)
@@ -107,7 +120,7 @@ def load_records(source, start, end):
                     continue
                 out.append(("idea", "idea", meta, body, path))
     if source in ("dao", "all"):
-        root = _resolve(DAO_DIR_RELATIVE)
+        root = _dao_dir()
         if root.is_dir():
             for path in sorted(root.rglob("*.md")):
                 meta, body = _parse_frontmatter_with_body(path)
@@ -117,7 +130,7 @@ def load_records(source, start, end):
                     continue
                 out.append(("dao", "dao", meta, body, path))
     if source in ("daily", "all"):
-        root = _resolve(DAILY_TASKS_DIR_RELATIVE)
+        root = _daily_tasks_dir()
         if root.is_dir():
             for path in sorted(root.rglob("*.md")):
                 meta, body = _parse_frontmatter_with_body(path)
@@ -128,7 +141,7 @@ def load_records(source, start, end):
                 if not in_range(_record_date_for_range(meta), start, end):
                     continue
                 out.append(("daily.task", "task", meta, body, path))
-        root = _resolve(DAILY_LOGS_DIR_RELATIVE)
+        root = _daily_logs_dir()
         if root.is_dir():
             for path in sorted(root.rglob("*.md")):
                 meta, body = _parse_frontmatter_with_body(path)
@@ -228,7 +241,7 @@ def tags(args):
 
 def difficulties(args):
     start, end = _resolve_period(args)
-    root = _resolve(DAILY_TASKS_DIR_RELATIVE)
+    root = _daily_tasks_dir()
     if not root.is_dir():
         return
     for path in sorted(root.rglob("*.md")):
@@ -342,7 +355,7 @@ def _render_snapshot(records, args, start, end):
 
 def _collect_difficulties(start, end):
     out = []
-    root = _resolve(DAILY_TASKS_DIR_RELATIVE)
+    root = _daily_tasks_dir()
     if not root.is_dir():
         return out
     for path in sorted(root.rglob("*.md")):
@@ -387,8 +400,9 @@ def save(args):
     start, end = _resolve_period(args)
     pid = period_id(args.period, start, end)
 
-    root = _resolve(REFLECT_DIR_RELATIVE)
+    root = _reflect_dir()
     ensure_dir(root)
+    ensure_workspace_manifest()
     reflect_id, path = unique_path(root, f"reflect-{pid}")
 
     records = load_records("all", start, end)
@@ -470,6 +484,7 @@ def main():
     p_save.set_defaults(func=save)
 
     args = parser.parse_args()
+    check_manifest_consistency()
     args.func(args)
 
 

@@ -10,7 +10,9 @@ from aha_md import (  # noqa: E402
     append_to_section,
     assert_workspace_path,
     atomic_write,
+    check_manifest_consistency,
     ensure_dir,
+    ensure_workspace_manifest,
     escape_pseudo_h2,
     format_tags,
     int_meta,
@@ -24,18 +26,18 @@ from aha_md import (  # noqa: E402
     slugify,
     split_frontmatter,
     unique_path,
+    workspace_dir,
 )
 
 
 ACTIVE_STATUSES = {"inbox", "researching", "planning"}
 PAUSED_STATUS = "paused"
 STATUSES = {"inbox", "researching", "planning", "paused", "completed", "killed"}
-IDEA_DIR_RELATIVE = Path(WORKSPACE_DIR_NAME) / "idea" / "idea-md"
 IDEA_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/idea/idea-md"
 
 
 def default_idea_dir():
-    return (Path.cwd() / IDEA_DIR_RELATIVE).resolve()
+    return workspace_dir("idea", "idea-md")
 
 
 def normalize_datetime(value):
@@ -57,6 +59,7 @@ def title_from_text(text):
 def capture(args):
     root = default_idea_dir()
     ensure_dir(root)
+    ensure_workspace_manifest()
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
     slug = slugify(args.text, fallback="idea")
@@ -258,6 +261,7 @@ def main():
     p_update.set_defaults(func=update)
 
     args = parser.parse_args()
+    check_manifest_consistency()
     args.func(args)
 
 

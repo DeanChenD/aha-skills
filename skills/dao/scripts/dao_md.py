@@ -11,7 +11,9 @@ from aha_md import (  # noqa: E402
     append_to_section,
     assert_workspace_path,
     atomic_write,
+    check_manifest_consistency,
     ensure_dir,
+    ensure_workspace_manifest,
     escape_pseudo_h2,
     format_tags,
     int_meta,
@@ -29,11 +31,10 @@ from aha_md import (  # noqa: E402
     split_frontmatter,
     title_from_body,
     unique_path,
+    workspace_dir,
 )
 
 
-DAO_DIR_RELATIVE = Path(WORKSPACE_DIR_NAME) / "dao" / "dao-md"
-SESSIONS_DIR_RELATIVE = Path(WORKSPACE_DIR_NAME) / "dao" / "sessions"
 DAO_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/dao/dao-md"
 
 RAW_HEADING = "Raw 原始感悟"
@@ -48,11 +49,11 @@ SCAN_MODES = ("random", "oldest", "least-reviewed")
 
 
 def default_dao_dir():
-    return (Path.cwd() / DAO_DIR_RELATIVE).resolve()
+    return workspace_dir("dao", "dao-md")
 
 
 def default_sessions_dir():
-    return (Path.cwd() / SESSIONS_DIR_RELATIVE).resolve()
+    return workspace_dir("dao", "sessions")
 
 
 def title_from_text(text):
@@ -104,6 +105,7 @@ tags: {format_tags(tags)}
 def capture(args):
     root = default_dao_dir()
     ensure_dir(root)
+    ensure_workspace_manifest()
     now = local_now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
     slug = slugify(args.text, fallback="dao")
@@ -357,6 +359,7 @@ def main():
     p_update.set_defaults(func=update)
 
     args = parser.parse_args()
+    check_manifest_consistency()
     args.func(args)
 
 

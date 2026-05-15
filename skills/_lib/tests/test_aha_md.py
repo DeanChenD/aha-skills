@@ -303,5 +303,80 @@ class LockedRecordConcurrencyTest(unittest.TestCase):
             self.assertIn("entry_count: 2", content)
 
 
+class WorkspaceManifestTest(unittest.TestCase):
+    def setUp(self):
+        self._original_cwd = os.getcwd()
+
+    def tearDown(self):
+        os.chdir(self._original_cwd)
+
+    def test_anchor_falls_back_to_cwd_when_no_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            anchor = aha_md.workspace_anchor()
+            # No manifest anywhere up to $HOME → fall back to cwd
+            self.assertEqual(Path(tmp).resolve(), anchor)
+
+    def test_anchor_finds_manifest_in_parent(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp).resolve()
+            # Create manifest at <tmp>/aha-workspace/.manifest.json
+            ws = tmp_path / "aha-workspace"
+            ws.mkdir()
+            (ws / ".manifest.json").write_text(
+                _json.dumps({"schema_version": 1, "timezone": "+08:00"}),
+                encoding="utf-8",
+            )
+            # cd into a subdir
+            sub = tmp_path / "deep" / "nested"
+            sub.mkdir(parents=True)
+            os.chdir(sub)
+            # Anchor should walk up to tmp (where manifest lives)
+            self.assertEqual(tmp_path, aha_md.workspace_anchor())
+
+    def test_ensure_manifest_writes_payload(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            aha_md.ensure_workspace_manifest()
+            mp = Path(tmp) / "aha-workspace" / ".manifest.json"
+            self.assertTrue(mp.exists())
+            data = _json.loads(mp.read_text(encoding="utf-8"))
+            self.assertEqual(1, data["schema_version"])
+            self.assertIn("timezone", data)
+            self.assertIn("host_id", data)
+
+    def test_ensure_manifest_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            aha_md.ensure_workspace_manifest()
+            first_mtime = (Path(tmp) / "aha-workspace" / ".manifest.json").stat().st_mtime
+            aha_md.ensure_workspace_manifest()  # second call must not rewrite
+            second_mtime = (Path(tmp) / "aha-workspace" / ".manifest.json").stat().st_mtime
+            self.assertEqual(first_mtime, second_mtime)
+
+    def test_check_consistency_warns_on_tz_mismatch(self):
+        import io as _io
+        import json as _json
+        from contextlib import redirect_stderr
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            ws = Path(tmp) / "aha-workspace"
+            ws.mkdir()
+            (ws / ".manifest.json").write_text(
+                _json.dumps({
+                    "schema_version": 1,
+                    "timezone": "-12:00",  # deliberately wrong vs system local
+                    "host_id": "other-machine",
+                }),
+                encoding="utf-8",
+            )
+            buf = _io.StringIO()
+            with redirect_stderr(buf):
+                aha_md.check_manifest_consistency()
+            self.assertIn("timezone mismatch", buf.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
