@@ -247,8 +247,19 @@ aha-skills/
 
 ## 安装到 host
 
-- **Claude Code**：把 skill 目录放进 `~/.claude/skills/`（或建符号链接），然后通过 `Skill` 工具 / 斜杠命令调用。
-- **Hermes**：放在 `~/.hermes/skills/<skill-name>` 下，或把父目录加进 `skills.external_dirs`；把 `workdir` 设为一个稳定父目录，保证 `aha-workspace/` 跨次复用。
+> **重要**：四个 skill 的脚本都从同级 `_lib/aha_md.py` 导入共享原语
+> （`scripts/*_md.py` 第一行 `sys.path.insert(0, .../skills/_lib)`）。
+> **必须把整个 `skills/` 父目录复制/符号链接到 host**，或者保证 `_lib/` 与
+> 被装的 skill 维持同级关系。**只装某一个 skill 而不带 `_lib/`，启动即
+> ImportError**。
+
+- **Claude Code**：把整个 `skills/` 目录链到 `~/.claude/skills/` 下
+  （例：`ln -s "$(pwd)/skills" ~/.claude/skills/aha`），保留 `_lib/` 与
+  四个 skill 的同级关系。也可以单独符号链接 `idea/ dao/ daily/ reflect/`，
+  但同时 **必须** 同步链接 `_lib/`。
+- **Hermes**：放在 `~/.hermes/skills/<parent>` 下，或把父目录加进
+  `skills.external_dirs`；同样保留 `_lib/` 同级。`workdir` 设为一个稳定
+  父目录，保证 `aha-workspace/` 跨次复用。
 
 ## 跑测试
 

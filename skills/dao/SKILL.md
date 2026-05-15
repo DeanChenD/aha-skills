@@ -147,7 +147,9 @@ For a scheduled agent run, use the skill as a soft surfacing loop:
 Use the dao skill. Run scan --peek --mode least-reviewed --limit 1. If a record returns, read its Refined section and ask me one specific question: refine, discuss, note, or let-it-sit. If I actually engage (refine / discuss / note), the corresponding subcommand updates review_count for me. Otherwise leave review_count alone — being looked at by a scheduler is not a review. If nothing returns or nothing seems alive, return [SILENT].
 ```
 
-When running in Hermes, install the skill under `~/.hermes/skills/dao` or configure `skills.external_dirs` to include the directory that contains this skill. Then create a cron job with the `dao` skill attached and `workdir` set to a stable parent directory; the Markdown records live in `<workdir>/aha-workspace/dao/`.
+**Install note** — `scripts/dao_md.py` imports from a sibling `_lib/aha_md.py` via `sys.path.insert(0, .../skills/_lib)`. Install the *whole* `skills/` parent directory (or symlink `_lib/` alongside `dao/`); a bare `dao/` install with no `_lib/` peer fails on first import. See [README — 安装到 host](../../README.md#安装到-host).
+
+When running in Hermes, install the skill under `~/.hermes/skills/dao` (with `_lib/` alongside) or configure `skills.external_dirs` to include the parent that contains both `dao/` and `_lib/`. Then create a cron job with the `dao` skill attached and `workdir` set to a stable parent directory; the Markdown records live in `<workdir>/aha-workspace/dao/`.
 
 ## Red Flags — STOP and re-read
 

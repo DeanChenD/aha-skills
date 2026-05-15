@@ -147,7 +147,9 @@ Example prompt for a scheduler:
 Use the idea skill. Run `scan --stale-days 7` (default cooldown skips ideas surfaced within the last 24h, preventing re-pings). For each due idea, choose the next smallest useful action. Update the Markdown file with status, next_review_at, notes, and decision log. Only message me when you need an answer or there is a concrete plan/kill recommendation. If I'm browsing interactively, use `--peek` so cron's cooldown isn't burned.
 ```
 
-When running in Hermes, install the skill under `~/.hermes/skills/idea` or configure `skills.external_dirs` to include the directory that contains this skill. Then create a cron job with the `idea` skill attached and `workdir` set to a stable parent directory; the Markdown records live in `<workdir>/aha-workspace/idea/idea-md/`.
+**Install note** — `scripts/idea_md.py` imports from a sibling `_lib/aha_md.py` via `sys.path.insert(0, .../skills/_lib)`. Install the *whole* `skills/` parent directory (or symlink `_lib/` alongside `idea/`); a bare `idea/` install with no `_lib/` peer fails on first import. See [README — 安装到 host](../../README.md#安装到-host).
+
+When running in Hermes, install the skill under `~/.hermes/skills/idea` (with `_lib/` alongside) or configure `skills.external_dirs` to include the parent that contains both `idea/` and `_lib/`. Then create a cron job with the `idea` skill attached and `workdir` set to a stable parent directory; the Markdown records live in `<workdir>/aha-workspace/idea/idea-md/`.
 
 ## Red Flags — STOP and re-read
 

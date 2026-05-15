@@ -163,7 +163,9 @@ For a scheduled agent run:
 Use the reflect skill. Run aggregate --period week and tags --period week. If anything jumps out (a tag co-occurring across all 3 sources, a recurring difficulty, an idea touching a recent dao theme), tell me one specific observation and ask whether to save a full reflection. Otherwise return [SILENT].
 ```
 
-When running in Hermes, install the skill under `~/.hermes/skills/reflect` or include its parent directory in `skills.external_dirs`. Set `workdir` to the same parent the other three skills use, so all four read/write the same `aha-workspace/`.
+**Install note** — `scripts/reflect_md.py` imports from a sibling `_lib/aha_md.py` via `sys.path.insert(0, .../skills/_lib)`. Install the *whole* `skills/` parent directory (or symlink `_lib/` alongside `reflect/`); a bare `reflect/` install with no `_lib/` peer fails on first import. See [README — 安装到 host](../../README.md#安装到-host).
+
+When running in Hermes, install the skill under `~/.hermes/skills/reflect` (with `_lib/` alongside) or include the parent directory containing both `reflect/` and `_lib/` in `skills.external_dirs`. Set `workdir` to the same parent the other three skills use, so all four read/write the same `aha-workspace/`.
 
 ## Red Flags — STOP and re-read
 

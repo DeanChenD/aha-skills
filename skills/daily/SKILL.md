@@ -180,3 +180,7 @@ After every action, tell the user:
 - At most one specific next step ("set status to in_progress and start a timer?" / "want to add a difficulty entry?" / not "what would you like to do?").
 
 The Markdown files are the source of truth. The chat is the side channel.
+
+## Install note
+
+`scripts/daily_md.py` imports from a sibling `_lib/aha_md.py` via `sys.path.insert(0, .../skills/_lib)`. Install the *whole* `skills/` parent directory (or symlink `_lib/` alongside `daily/`); a bare `daily/` install with no `_lib/` peer fails on first import. See [README — 安装到 host](../../README.md#安装到-host).
