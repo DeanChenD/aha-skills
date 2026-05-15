@@ -209,6 +209,10 @@ class SaveTest(unittest.TestCase):
             self.assertIn("agent, inbox", text)
             self.assertIn("## 模式与启示", text)
             self.assertIn("## 下阶段意图", text)
+            # Placeholder must explicitly forbid LLM-only fill (P1#7) so the
+            # agent reading this file later does not interpret the section as
+            # "fill me in"
+            self.assertIn("不要单方面预填", text)
 
     def test_save_does_not_overwrite(self):
         with tempfile.TemporaryDirectory() as tmp:

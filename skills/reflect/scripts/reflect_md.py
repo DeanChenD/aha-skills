@@ -432,11 +432,11 @@ sources: [idea, dao, daily]
 
 ## 模式与启示
 
-<agent fills: 3-7 patterns observed across the snapshot above. Look for tag overlap, recurring difficulty themes, ideas-that-touch-realizations.>
+<待与用户讨论后填写；agent 不要单方面预填。这一段是慢思考的产物——读完上面的 Source Snapshot 之后与用户多轮交流，再把得出的 3-7 条观察写到这里。关注：跨源 tag 重叠 / 反复出现的困难主题 / 某个 idea 触到了某个 dao。>
 
 ## 下阶段意图
 
-<agent fills: 1-3 concrete intents for the next period — not goals, intents.>
+<待与用户讨论后填写；agent 不要单方面预填。1-3 条"意图"（不是 goals）。>
 """
     path.write_text(body, encoding="utf-8")
     print(path)

@@ -83,14 +83,14 @@ sources: [idea, dao, daily]
 
 ## 模式与启示
 
-<agent fills>
+<待与用户讨论后填写；agent 不要单方面预填>
 
 ## 下阶段意图
 
-<agent fills>
+<待与用户讨论后填写；agent 不要单方面预填>
 ```
 
-The `## Source Snapshot` and `## Tags Across Sources` sections are **pre-filled by the CLI** — agent does not need to re-scan. The two trailing sections (`模式与启示`, `下阶段意图`) are intentionally left blank for the agent + user to discuss and fill.
+The `## Source Snapshot` and `## Tags Across Sources` sections are **pre-filled by the CLI** — agent does not need to re-scan. The two trailing sections (`模式与启示`, `下阶段意图`) are intentionally left blank with explicit "do not pre-fill" placeholders. Fill them only after a real conversation with the user — see the Red Flag below.
 
 ## Workflows
 
