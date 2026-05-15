@@ -147,42 +147,102 @@ def set_meta(lines, key, value):
     lines.append(rendered)
 
 
+def _section_offsets(body):
+    """Return list of (line_start, line_end, heading_text) for all h2 section
+    headings in body — line-based and fence-aware.
+
+    "Heading" means a line whose stripped content is exactly "## <text>".
+    Lines inside ``` ... ``` or ~~~ ... ~~~ fenced code blocks are skipped,
+    so a code sample containing "## Notes" does not pose as a real section.
+
+    This is the only place section boundaries are decided; append_to_section /
+    read_section / replace_section all delegate here.
+    """
+    out = []
+    in_fence = False
+    pos = 0
+    while pos <= len(body):
+        line_end = body.find("\n", pos)
+        if line_end == -1:
+            line_end = len(body)
+        line = body[pos:line_end]
+        stripped_left = line.lstrip()
+        if stripped_left.startswith("```") or stripped_left.startswith("~~~"):
+            in_fence = not in_fence
+        elif not in_fence:
+            s = line.strip()
+            if s.startswith("## ") and not s.startswith("### "):
+                out.append((pos, line_end, s[3:].strip()))
+        if line_end == len(body):
+            break
+        pos = line_end + 1
+    return out
+
+
+def _find_section(body, heading):
+    """Return ((heading_line_start, heading_line_end), section_end) for the
+    first h2 section whose heading text equals `heading`, or None."""
+    sections = _section_offsets(body)
+    for index, (line_start, line_end, h) in enumerate(sections):
+        if h == heading:
+            section_end = sections[index + 1][0] if index + 1 < len(sections) else len(body)
+            return (line_start, line_end), section_end
+    return None
+
+
+def escape_pseudo_h2(text):
+    """Escape line-leading '## ' (h2) markers inside multi-line user content
+    so they are not mistaken for real section headings by _section_offsets.
+
+    Markdown renders '\\## ' identically to '## ' on a non-heading line per
+    CommonMark backslash escape rules, so this is visually transparent to
+    readers but structurally inert to the section finder.
+
+    Used at capture/refine time on user-controlled section bodies (e.g.
+    Raw, Refined) where the user might legitimately type a `## Foo` line.
+    """
+    if not text:
+        return text
+    out = []
+    for line in text.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith("## ") and not stripped.startswith("### "):
+            indent = line[: len(line) - len(stripped)]
+            out.append(f"{indent}\\{stripped}")
+        else:
+            out.append(line)
+    return "".join(out)
+
+
 def append_to_section(body, heading, line):
     line = sanitize_single_line(line)
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
+    found = _find_section(body, heading)
+    if found is None:
         suffix = "" if body.endswith("\n") else "\n"
-        return f"{body}{suffix}\n{marker}\n\n{line}\n"
-    next_pos = body.find("\n## ", pos + len(marker))
-    insert_at = len(body) if next_pos == -1 else next_pos
-    before = body[:insert_at].rstrip()
-    after = body[insert_at:]
+        return f"{body}{suffix}\n## {heading}\n\n{line}\n"
+    (_, _), section_end = found
+    before = body[:section_end].rstrip()
+    after = body[section_end:]
     return f"{before}\n{line}\n{after}"
 
 
 def read_section(body, heading):
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
+    found = _find_section(body, heading)
+    if found is None:
         return ""
-    start = pos + len(marker)
-    next_pos = body.find("\n## ", start)
-    end = len(body) if next_pos == -1 else next_pos
-    return body[start:end].strip("\n").strip()
+    (_, line_end), section_end = found
+    return body[line_end:section_end].strip("\n").strip()
 
 
 def replace_section(body, heading, new_content):
-    marker = f"## {heading}"
-    pos = body.find(marker)
-    if pos == -1:
+    new_content = escape_pseudo_h2(new_content)
+    found = _find_section(body, heading)
+    if found is None:
         suffix = "" if body.endswith("\n") else "\n"
-        return f"{body}{suffix}\n{marker}\n\n{new_content.rstrip()}\n"
-    start = pos + len(marker)
-    next_pos = body.find("\n## ", start)
-    end = len(body) if next_pos == -1 else next_pos
-    head = body[:pos] + marker + "\n\n" + new_content.rstrip() + "\n"
-    tail = body[end:]
+        return f"{body}{suffix}\n## {heading}\n\n{new_content.rstrip()}\n"
+    (line_start, _), section_end = found
+    head = body[:line_start] + f"## {heading}\n\n" + new_content.rstrip() + "\n"
+    tail = body[section_end:]
     if tail and not tail.startswith("\n"):
         head = head.rstrip("\n") + "\n"
     return head + tail

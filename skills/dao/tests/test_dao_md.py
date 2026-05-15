@@ -185,6 +185,31 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("revisited today", text)
             self.assertIn("## Notes", text)
 
+    def test_capture_escapes_pseudo_h2_in_raw_text(self):
+        """Raw text containing a line `## Notes` must not collide with the
+        real ## Notes section; subsequent update --note writes to the real
+        section, not the one buried in raw text."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli(
+                "capture",
+                "--text",
+                "thinking about:\n## Notes\nthis was inside my idea text",
+                cwd=tmp,
+            )
+            path = Path(captured.stdout.strip())
+            text = path.read_text(encoding="utf-8")
+            # Raw section's pseudo-heading is escaped to `\## Notes`
+            self.assertIn("\\## Notes", text)
+            # Only ONE real `## Notes` line at column 0 (the legitimate section)
+            real_notes = [ln for ln in text.splitlines() if ln == "## Notes"]
+            self.assertEqual(1, len(real_notes))
+
+            run_cli("update", str(path), "--note", "first real note", cwd=tmp)
+            text2 = path.read_text(encoding="utf-8")
+            # The note lands AFTER the real ## Notes heading
+            notes_idx = text2.index("## Notes")
+            self.assertIn("first real note", text2[notes_idx:])
+
     def test_update_refuses_path_outside_dao_workspace(self):
         """End-to-end: update against a .md outside aha-workspace/dao/ must
         exit non-zero (the CLI calls assert_workspace_path)."""

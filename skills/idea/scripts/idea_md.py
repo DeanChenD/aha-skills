@@ -10,6 +10,7 @@ from aha_md import (  # noqa: E402
     append_to_section,
     assert_workspace_path,
     ensure_dir,
+    escape_pseudo_h2,
     format_tags,
     int_meta,
     local_now,
@@ -59,6 +60,7 @@ def capture(args):
     title = args.title or title_from_text(args.text)
     timestamp = now.isoformat(timespec="seconds")
     next_review_at = normalize_datetime(args.next_review_at)
+    raw_text_safe = escape_pseudo_h2(args.text)
     body = f"""---
 id: {idea_id}
 status: {args.status}
@@ -77,7 +79,7 @@ tags: {format_tags(args.tags)}
 
 ## Raw Idea
 
-{args.text}
+{raw_text_safe}
 
 ## Summary
 

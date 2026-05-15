@@ -11,6 +11,7 @@ from aha_md import (  # noqa: E402
     append_to_section,
     assert_workspace_path,
     ensure_dir,
+    escape_pseudo_h2,
     format_tags,
     int_meta,
     load_record,
@@ -108,7 +109,7 @@ def capture(args):
     body = render_dao_skeleton(
         dao_id,
         title,
-        args.text,
+        escape_pseudo_h2(args.text),
         now,
         args.source,
         args.priority,
@@ -158,25 +159,28 @@ def discuss(args):
     session_path = sessions_dir / f"{session_id}.md"
 
     timestamp = now.isoformat(timespec="seconds")
+    safe_topic = escape_pseudo_h2(args.topic)
+    safe_conversation = escape_pseudo_h2(args.conversation)
+    safe_takeaway = escape_pseudo_h2(args.takeaway)
     session_body = f"""---
 session_id: {session_id}
 parent_dao_id: {parent_id}
 created_at: {timestamp}
 ---
 
-# Discussion: {args.topic}
+# Discussion: {safe_topic}
 
 ## Prompt 起点
 
-{args.topic}
+{safe_topic}
 
 ## Conversation 对话原文
 
-{args.conversation}
+{safe_conversation}
 
 ## Takeaway 收获
 
-{args.takeaway}
+{safe_takeaway}
 """
     session_path.write_text(session_body, encoding="utf-8")
 

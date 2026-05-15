@@ -11,6 +11,7 @@ from aha_md import (  # noqa: E402
     append_to_section,
     assert_workspace_path,
     ensure_dir,
+    escape_pseudo_h2,
     format_tags,
     int_meta,
     load_record,
@@ -189,41 +190,44 @@ tags: {format_tags(tags)}
 
 def render_checkin_body(checkin_id, parent_task_id, now, topic, conversation, takeaway, difficulty, next_step):
     timestamp = now.isoformat(timespec="seconds")
-    diff_block = difficulty.strip() if difficulty else "(none)"
-    next_block = next_step.strip() if next_step else "(none)"
+    safe_topic = escape_pseudo_h2(topic)
+    safe_conversation = escape_pseudo_h2(conversation)
+    safe_takeaway = escape_pseudo_h2(takeaway)
+    safe_difficulty = escape_pseudo_h2(difficulty.strip()) if difficulty else "(none)"
+    safe_next = escape_pseudo_h2(next_step.strip()) if next_step else "(none)"
     return f"""---
 checkin_id: {checkin_id}
 parent_task_id: {parent_task_id}
 created_at: {timestamp}
 ---
 
-# Check-in: {topic}
+# Check-in: {safe_topic}
 
 ## Prompt 起点
 
-{topic}
+{safe_topic}
 
 ## Conversation 对话原文
 
-{conversation}
+{safe_conversation}
 
 ## Difficulties Surfaced
 
-{diff_block}
+{safe_difficulty}
 
 ## Takeaway 收获
 
-{takeaway}
+{safe_takeaway}
 
 ## Next Step
 
-{next_block}
+{safe_next}
 """
 
 
 def _append_log_entry(body, time_str, title, text):
     body = body.rstrip() + "\n\n"
-    body += f"## {time_str} — {title}\n\n{text.strip()}\n"
+    body += f"## {time_str} — {title}\n\n{escape_pseudo_h2(text).strip()}\n"
     return body
 
 
@@ -239,7 +243,7 @@ def task(args):
     body = render_task_skeleton(
         task_id,
         title,
-        args.text,
+        escape_pseudo_h2(args.text),
         now,
         due_iso,
         args.priority,

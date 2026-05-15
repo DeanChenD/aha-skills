@@ -85,6 +85,80 @@ class AppendToSectionInjectionTest(unittest.TestCase):
         self.assertNotIn("↵", body2)
 
 
+class SectionFinderTest(unittest.TestCase):
+    def test_section_inside_code_fence_not_a_real_heading(self):
+        body = (
+            "## Raw\n\n"
+            "user typed:\n"
+            "```\n"
+            "## Notes\n"
+            "this looks like a heading but is in a code block\n"
+            "```\n\n"
+            "## Notes\n\n"
+            "real notes here\n"
+        )
+        # find the real ## Notes (the second one), not the fenced one
+        offsets = aha_md._section_offsets(body)
+        headings = [h for _, _, h in offsets]
+        self.assertEqual(["Raw", "Notes"], headings)
+
+    def test_h3_not_treated_as_h2(self):
+        body = "## Real\ncontent\n### Subheading\nstuff\n"
+        offsets = aha_md._section_offsets(body)
+        self.assertEqual(["Real"], [h for _, _, h in offsets])
+
+    def test_append_skips_pseudo_heading_in_raw(self):
+        body = (
+            "## Raw\n\n"
+            "## Notes\n"  # pseudo-heading inside Raw — line-aware finder still
+            "user accidentally typed this\n\n"
+            "## Notes\n\n"
+            "real\n"
+        )
+        # Two real Notes headings; finder picks the first match.
+        # NOTE: this test documents that without escape_pseudo_h2 at write time,
+        # bare "## Notes" in raw IS structurally a heading. Capture-time escape
+        # is the defense against that — see test_capture_escapes_pseudo_h2.
+        offsets = aha_md._section_offsets(body)
+        self.assertEqual(["Raw", "Notes", "Notes"], [h for _, _, h in offsets])
+
+    def test_escape_pseudo_h2_neutralizes_h2(self):
+        text = "line one\n## Notes\nline three\n### still h3\n"
+        out = aha_md.escape_pseudo_h2(text)
+        # h2 line escaped, h3 untouched
+        self.assertIn("\\## Notes", out)
+        self.assertNotIn("\n## Notes", out)
+        self.assertIn("### still h3", out)
+
+    def test_read_section_returns_only_target_section_content(self):
+        body = (
+            "## A\n\nalpha\n\n"
+            "## B\n\nbeta\n\n"
+            "## C\n\ngamma\n"
+        )
+        self.assertEqual("alpha", aha_md.read_section(body, "A"))
+        self.assertEqual("beta", aha_md.read_section(body, "B"))
+        self.assertEqual("gamma", aha_md.read_section(body, "C"))
+
+    def test_replace_section_preserves_neighbors(self):
+        body = "## A\n\nalpha\n\n## B\n\nbeta\n"
+        out = aha_md.replace_section(body, "A", "ALPHA-NEW")
+        self.assertIn("ALPHA-NEW", out)
+        self.assertIn("## B", out)
+        self.assertIn("beta", out)
+        self.assertNotIn("alpha", out)
+
+    def test_replace_section_escapes_h2_in_new_content(self):
+        body = "## Refined\n\nold\n\n## Notes\n\nstuff\n"
+        # Caller passes new content that contains a literal `## Notes` line
+        out = aha_md.replace_section(body, "Refined", "para\n## Notes\nfaux")
+        # The new content's pseudo-heading is escaped — Notes heading count == 1
+        notes_heads = [
+            ln for ln in out.splitlines() if ln.strip() == "## Notes"
+        ]
+        self.assertEqual(1, len(notes_heads))
+
+
 class AssertWorkspacePathTest(unittest.TestCase):
     def _with_cwd(self, new_cwd):
         self._original_cwd = os.getcwd()
