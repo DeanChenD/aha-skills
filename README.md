@@ -1,6 +1,6 @@
 # aha-skills
 
-A collection of lightweight, file-based skills for AI agents (Claude Code, Hermes, OpenAI agents). Each skill is self-contained in its own folder, exposes a `SKILL.md` describing when and how to use it, and persists state as plain Markdown so the human and the agent share the same source of truth.
+A collection of lightweight, file-based skills for AI agents (Claude Code, Hermes). Each skill is self-contained in its own folder, exposes a `SKILL.md` describing when and how to use it, and persists state as plain Markdown so the human and the agent share the same source of truth.
 
 All runtime data lives under a shared `aha-workspace/` directory in the host's working directory. Each skill owns a sub-folder there (e.g. `aha-workspace/idea/`).
 
@@ -179,8 +179,6 @@ aha-skills/
 └── skills/
     ├── idea/
     │   ├── SKILL.md            # Skill definition (frontmatter + workflow)
-    │   ├── agents/
-    │   │   └── openai.yaml     # OpenAI agent interface metadata
     │   ├── references/         # Reference material the skill may load
     │   ├── scripts/
     │   │   └── idea_md.py      # CLI: capture / update / scan
@@ -188,8 +186,6 @@ aha-skills/
     │       └── test_idea_md.py # unittest suite for idea_md.py
     ├── dao/
     │   ├── SKILL.md
-    │   ├── agents/
-    │   │   └── openai.yaml
     │   ├── references/
     │   ├── scripts/
     │   │   └── dao_md.py        # CLI: capture / refine / discuss / scan / update
@@ -197,8 +193,6 @@ aha-skills/
     │       └── test_dao_md.py
     └── daily/
         ├── SKILL.md
-        ├── agents/
-        │   └── openai.yaml
         ├── references/
         ├── scripts/
         │   └── daily_md.py      # CLI: task / update / checkin / log / scan
@@ -210,7 +204,6 @@ aha-skills/
 
 - **Claude Code**: drop the skill folder into `~/.claude/skills/` (or symlink it), then invoke via the `Skill` tool / slash command.
 - **Hermes**: install under `~/.hermes/skills/<skill-name>` or add the parent directory to `skills.external_dirs`. Set `workdir` to a stable parent so `aha-workspace/` is reused across runs.
-- **OpenAI agents**: load `agents/openai.yaml` for display metadata and point the agent at the skill folder.
 
 ## Running tests
 
@@ -225,7 +218,7 @@ python3 skills/daily/tests/test_daily_md.py
 - One Markdown file per record; raw user content is preserved verbatim.
 - All paths resolve relative to the current working directory via `aha-workspace/`.
 - Skills should never write outside `aha-workspace/<skill>/` at runtime.
-- New skills follow the same shape: `SKILL.md`, optional `scripts/`, `tests/`, `references/`, `agents/`.
+- New skills follow the same shape: `SKILL.md`, optional `scripts/`, `tests/`, `references/`.
 
 ## Future Skills (planned)
 

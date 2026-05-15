@@ -1,4 +1,0 @@
-interface:
-  display_name: "Dao"
-  short_description: "Capture, refine, discuss and periodically revisit personal insights as Markdown."
-  default_prompt: "Capture this insight verbatim, give it a first refined version, and tell me where it landed."

@@ -2,7 +2,7 @@
 
 > [English](README.md) | **简体中文**
 
-一组轻量级、基于文件的 AI agent skill 集合（适配 Claude Code、Hermes、OpenAI agents 等 host）。每个 skill 自包含在自己的目录里，通过 `SKILL.md` 描述何时及如何使用，并以纯 Markdown 持久化状态——人类和 agent 共读同一份事实源。
+一组轻量级、基于文件的 AI agent skill 集合（适配 Claude Code、Hermes 等 host）。每个 skill 自包含在自己的目录里，通过 `SKILL.md` 描述何时及如何使用，并以纯 Markdown 持久化状态——人类和 agent 共读同一份事实源。
 
 所有运行时数据存放在 host 当前工作目录下的共享 `aha-workspace/` 目录中，每个 skill 在其下拥有自己的子目录（例如 `aha-workspace/idea/`）。
 
@@ -182,8 +182,6 @@ aha-skills/
 └── skills/
     ├── idea/
     │   ├── SKILL.md            # Skill 定义（frontmatter + 工作流）
-    │   ├── agents/
-    │   │   └── openai.yaml     # OpenAI agent 接口元数据
     │   ├── references/         # skill 按需加载的参考资料
     │   ├── scripts/
     │   │   └── idea_md.py      # CLI：capture / update / scan
@@ -191,8 +189,6 @@ aha-skills/
     │       └── test_idea_md.py # idea_md.py 的 unittest 套件
     ├── dao/
     │   ├── SKILL.md
-    │   ├── agents/
-    │   │   └── openai.yaml
     │   ├── references/
     │   ├── scripts/
     │   │   └── dao_md.py        # CLI：capture / refine / discuss / scan / update
@@ -200,8 +196,6 @@ aha-skills/
     │       └── test_dao_md.py
     └── daily/
         ├── SKILL.md
-        ├── agents/
-        │   └── openai.yaml
         ├── references/          # 5 个子工作流：task-capture / overdue-flow / checkin-flow / log-flow / review-flow
         ├── scripts/
         │   └── daily_md.py      # CLI：task / update / checkin / log / scan
@@ -213,7 +207,6 @@ aha-skills/
 
 - **Claude Code**：把 skill 目录放进 `~/.claude/skills/`（或建符号链接），然后通过 `Skill` 工具 / 斜杠命令调用。
 - **Hermes**：放在 `~/.hermes/skills/<skill-name>` 下，或把父目录加进 `skills.external_dirs`；把 `workdir` 设为一个稳定父目录，保证 `aha-workspace/` 跨次复用。
-- **OpenAI agents**：加载 `agents/openai.yaml` 拿到展示元数据，并把 agent 指向 skill 目录。
 
 ## 跑测试
 
@@ -228,7 +221,7 @@ python3 skills/daily/tests/test_daily_md.py
 - 每条记录一个 Markdown 文件；用户原始内容逐字保留。
 - 所有路径相对当前工作目录，通过 `aha-workspace/` 解析。
 - Skill 在运行时永远不要写到 `aha-workspace/<skill>/` 之外。
-- 新增 skill 沿用同款骨架：`SKILL.md`，可选 `scripts/`、`tests/`、`references/`、`agents/`。
+- 新增 skill 沿用同款骨架：`SKILL.md`，可选 `scripts/`、`tests/`、`references/`。
 
 ## 未来 Skill（规划中）
 
