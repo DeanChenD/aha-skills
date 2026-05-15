@@ -288,6 +288,40 @@ class DaoMarkdownCliTest(unittest.TestCase):
             # And FAKE REFINED is not its own heading line (collapsed into the note)
             self.assertNotIn("\n## Refined 提炼沉淀\nFAKE REFINED", text)
 
+    def test_refine_refuses_session_file_as_if_it_were_dao_record(self):
+        """P0#5: dao refine/discuss/update operate on the canonical record
+        in dao-md/. A session file in sessions/ lives in the same skill
+        workspace but is structurally different — refine must refuse it."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "seed", cwd=tmp)
+            dao_path = Path(captured.stdout.strip())
+
+            run_cli(
+                "discuss", str(dao_path),
+                "--topic", "t",
+                "--conversation", "c",
+                "--takeaway", "k",
+                cwd=tmp,
+            )
+            sessions_dir = (
+                Path(tmp) / "aha-workspace" / "dao" / "sessions"
+            ).resolve()
+            session_files = list(sessions_dir.glob("*-session-*.md"))
+            self.assertEqual(1, len(session_files))
+            session_path = session_files[0]
+            original = session_path.read_text(encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "refine", str(session_path),
+                 "--text", "should not write"],
+                capture_output=True, text=True, cwd=tmp,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("expected", result.stderr)
+            # Session file untouched
+            self.assertEqual(original, session_path.read_text(encoding="utf-8"))
+
     def test_capture_rejects_frontmatter_injection_via_source(self):
         """P0#2 regression: --source 'chat\\nschema_version: 99' must not
         forge a second frontmatter row at capture time."""

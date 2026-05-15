@@ -389,6 +389,48 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertEqual(1, len(cat_rows))
             self.assertNotIn("\n", cat_rows[0])
 
+    def test_update_refuses_log_file_as_if_it_were_a_task(self):
+        """P0#5: daily update only accepts files under daily/tasks/ with
+        type: task. A log file sitting under daily/logs/ shares the
+        skill workspace but must not be mutable via the task update
+        subcommand — different schema."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            log_res = run_cli("log", "--text", "morning notes",
+                              "--time", "08:00", "--title", "morning", cwd=tmp)
+            log_path = Path(log_res.stdout.strip())
+            self.assertTrue(log_path.is_file())
+            original = log_path.read_text(encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "update", str(log_path),
+                 "--status", "done"],
+                capture_output=True, text=True, cwd=tmp,
+            )
+            self.assertNotEqual(0, result.returncode)
+            # Either subdir mismatch OR type mismatch — both are valid rejections
+            self.assertTrue(
+                "expected" in result.stderr or "wrong type" in result.stderr,
+                f"unexpected stderr: {result.stderr!r}",
+            )
+            # Log file untouched
+            self.assertEqual(original, log_path.read_text(encoding="utf-8"))
+
+    def test_checkin_refuses_log_file_as_parent(self):
+        """P0#5: daily checkin must refuse a log file as the parent path."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            log_res = run_cli("log", "--text", "x", "--time", "08:00",
+                              "--title", "x", cwd=tmp)
+            log_path = Path(log_res.stdout.strip())
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "checkin", str(log_path),
+                 "--topic", "t", "--conversation", "c", "--takeaway", "k"],
+                capture_output=True, text=True, cwd=tmp,
+            )
+            self.assertNotEqual(0, result.returncode)
+
     def test_task_capture_rejects_h2_injection_via_title(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = run_cli(

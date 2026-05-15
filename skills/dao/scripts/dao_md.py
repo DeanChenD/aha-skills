@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     append_to_section,
+    assert_record_path,
     assert_workspace_path,
     atomic_write,
     check_manifest_consistency,
@@ -130,7 +131,7 @@ def capture(args):
 
 def refine(args):
     path = Path(args.file).expanduser().resolve()
-    assert_workspace_path(path, "dao")
+    assert_record_path(path, "dao", subdir="dao-md")
     with locked_record(path):
         _do_refine(path, args)
     print(path)
@@ -158,7 +159,7 @@ def _do_refine(path, args):
 
 def discuss(args):
     path = Path(args.file).expanduser().resolve()
-    assert_workspace_path(path, "dao")
+    assert_record_path(path, "dao", subdir="dao-md")
     with locked_record(path):
         session_path = _do_discuss(path, args)
     print(session_path)
@@ -278,7 +279,7 @@ def scan(args):
 
 def update(args):
     path = Path(args.file).expanduser().resolve()
-    assert_workspace_path(path, "dao")
+    assert_record_path(path, "dao", subdir="dao-md")
     with locked_record(path):
         _do_update(path, args)
     print(path)

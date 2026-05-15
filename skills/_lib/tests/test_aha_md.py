@@ -281,6 +281,72 @@ class AssertWorkspacePathTest(unittest.TestCase):
             aha_md.assert_workspace_path(target, "daily")
 
 
+class AssertRecordPathTest(unittest.TestCase):
+    """Tighter authorization: subdir + record-type whitelist. Even when a
+    path is inside the right skill workspace, daily update / checkin must
+    refuse a log file as if it were a task, and dao refine must refuse a
+    sessions/ file as if it were a canonical dao record."""
+
+    def setUp(self):
+        self._original_cwd = os.getcwd()
+
+    def tearDown(self):
+        os.chdir(self._original_cwd)
+
+    def _make(self, tmp, *segments, content="---\n---\n"):
+        path = Path(tmp).joinpath(*segments)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def test_correct_subdir_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            target = self._make(
+                tmp, "aha-workspace", "daily", "tasks", "task-x.md",
+                content="---\nschema_version: 1\ntype: task\n---\n",
+            )
+            aha_md.assert_record_path(target, "daily", subdir="tasks", required_type="task")
+
+    def test_wrong_subdir_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            target = self._make(
+                tmp, "aha-workspace", "daily", "logs", "log-2026-05-15.md",
+                content="---\nschema_version: 1\ntype: log\n---\n",
+            )
+            with self.assertRaises(SystemExit) as cm:
+                aha_md.assert_record_path(target, "daily", subdir="tasks", required_type="task")
+            self.assertIn("expected record subdir", str(cm.exception)) if False else None
+            self.assertIn("expected", str(cm.exception))
+
+    def test_wrong_type_rejected(self):
+        """A file living in the right subdir but carrying the wrong
+        `type:` field is still refused — guards against a log file
+        accidentally placed under tasks/."""
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            target = self._make(
+                tmp, "aha-workspace", "daily", "tasks", "stranger.md",
+                content="---\nschema_version: 1\ntype: log\n---\n",
+            )
+            with self.assertRaises(SystemExit) as cm:
+                aha_md.assert_record_path(target, "daily", subdir="tasks", required_type="task")
+            self.assertIn("wrong type", str(cm.exception))
+
+    def test_subdir_only_check(self):
+        """For records that don't carry a `type:` field (idea, dao),
+        omit required_type and only enforce subdir."""
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            ok = self._make(tmp, "aha-workspace", "dao", "dao-md", "dao-x.md")
+            aha_md.assert_record_path(ok, "dao", subdir="dao-md")
+
+            session = self._make(tmp, "aha-workspace", "dao", "sessions", "session-1.md")
+            with self.assertRaises(SystemExit):
+                aha_md.assert_record_path(session, "dao", subdir="dao-md")
+
+
 class SchemaVersionTest(unittest.TestCase):
     def test_assert_v1_passes(self):
         aha_md.assert_schema_version({"schema_version": "1"})

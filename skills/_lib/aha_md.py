@@ -380,6 +380,59 @@ def assert_workspace_path(path, skill_name):
         )
 
 
+def assert_record_path(path, skill_name, subdir=None, required_type=None):
+    """Tighter authorization than ``assert_workspace_path``.
+
+    ``assert_workspace_path`` only proves the target is under the skill
+    workspace; that lets ``daily update <log_file>`` rewrite a log as if
+    it were a task, or ``dao refine <session_file>`` clobber a discussion
+    session. This function additionally constrains:
+
+    - ``subdir``: the immediate subdirectory under the skill workspace
+      that legitimately holds this record class (``tasks``, ``dao-md``,
+      ``idea-md``, …). Cross-subdir mutation is refused.
+    - ``required_type``: when the record schema carries a ``type:``
+      frontmatter field (daily tasks vs logs vs reviews), enforce it
+      matches what the caller expects.
+
+    A non-existent ``path`` skips the type check (capture paths can call
+    this before the file exists if needed). Callers that operate on
+    existing records should resolve the path first.
+    """
+    workspace_root = workspace_dir(skill_name)
+    target = Path(path).expanduser().resolve()
+    try:
+        target.relative_to(workspace_root)
+    except ValueError:
+        raise SystemExit(
+            f"Refusing to operate outside skill workspace.\n"
+            f"  expected under: {workspace_root}\n"
+            f"  got: {target}"
+        )
+    if subdir is not None:
+        expected_subdir = (workspace_root / subdir).resolve()
+        try:
+            target.relative_to(expected_subdir)
+        except ValueError:
+            raise SystemExit(
+                f"Refusing to operate outside expected record subdir.\n"
+                f"  expected under: {expected_subdir}\n"
+                f"  got: {target}"
+            )
+    if required_type is not None and target.exists():
+        try:
+            meta = parse_frontmatter(target)
+        except OSError:
+            raise SystemExit(f"Cannot read frontmatter to verify type: {target}")
+        actual = meta.get("type")
+        if actual != required_type:
+            raise SystemExit(
+                f"Refusing to operate on record of wrong type.\n"
+                f"  expected type: {required_type}\n"
+                f"  got: {actual!r} in {target}"
+            )
+
+
 CURRENT_SCHEMA_VERSION = 1
 
 
