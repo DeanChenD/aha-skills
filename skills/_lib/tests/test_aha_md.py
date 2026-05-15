@@ -378,5 +378,41 @@ class WorkspaceManifestTest(unittest.TestCase):
             self.assertIn("timezone mismatch", buf.getvalue())
 
 
+class ParseDtTest(unittest.TestCase):
+    def test_naive_datetime_gets_local_tz(self):
+        out = aha_md.parse_dt("2026-05-15T10:00:00")
+        self.assertIsNotNone(out)
+        self.assertIsNotNone(out.tzinfo)
+
+    def test_aware_datetime_preserved(self):
+        out = aha_md.parse_dt("2026-05-15T10:00:00+05:30")
+        self.assertIsNotNone(out)
+        self.assertEqual(5 * 3600 + 30 * 60, int(out.utcoffset().total_seconds()))
+
+    def test_garbage_returns_none(self):
+        self.assertIsNone(aha_md.parse_dt("not-a-date"))
+        self.assertIsNone(aha_md.parse_dt(""))
+        self.assertIsNone(aha_md.parse_dt(None))
+
+
+class ParseTagsTest(unittest.TestCase):
+    def test_valid_list_parsed(self):
+        self.assertEqual(["a", "b"], aha_md.parse_tags_field('["a", "b"]'))
+
+    def test_bad_json_silently_returns_empty(self):
+        # Documented behavior — bad tags string is treated as no tags
+        # rather than crashing the scan path. Callers wanting fail-loud
+        # should validate separately.
+        self.assertEqual([], aha_md.parse_tags_field("not-json"))
+        self.assertEqual([], aha_md.parse_tags_field("[unterminated"))
+
+    def test_empty_returns_empty(self):
+        self.assertEqual([], aha_md.parse_tags_field(""))
+        self.assertEqual([], aha_md.parse_tags_field(None))
+
+    def test_non_list_returns_empty(self):
+        self.assertEqual([], aha_md.parse_tags_field('"just a string"'))
+
+
 if __name__ == "__main__":
     unittest.main()

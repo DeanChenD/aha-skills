@@ -294,6 +294,52 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertIn("alpha", lines[0])
 
 
+    def test_task_with_garbage_due_exits_non_zero(self):
+        """parse_due rejects malformed dates with a clear error rather than
+        silently storing junk that breaks later scans."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "task", "--text", "x", "--due", "tomorrowish"],
+                capture_output=True, text=True, cwd=tmp,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("Invalid due value", result.stderr)
+
+    def test_scan_overdue_handles_files_with_no_due_at(self):
+        """Sorting overdue should not TypeError on tasks where due_at is
+        missing — relies on parse_dt returning None and the far_future
+        sentinel having a tzinfo (P2#11 regression coverage)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli("task", "--text", "no-due task", cwd=tmp)
+            run_cli("task", "--text", "old task", "--due", "2020-01-01", cwd=tmp)
+            scan = run_cli("scan", "--mode", "overdue", cwd=tmp)
+            # Should not raise; overdue list contains only the past-due task
+            self.assertIn("old task", scan.stdout)
+            self.assertNotIn("no-due task", scan.stdout)
+
+    def test_difficulty_written_by_daily_is_parsed_by_reflect(self):
+        """End-to-end contract: daily writes Difficulty Log lines in a format
+        that reflect.difficulties (DIFFICULTY_LINE_RE) can parse back. If
+        either side drifts, this test fails."""
+        import subprocess
+        REPO = Path(__file__).resolve().parents[3]
+        REFLECT_SCRIPT = REPO / "skills" / "reflect" / "scripts" / "reflect_md.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("task", "--text", "schema work", cwd=tmp)
+            task_path = Path(captured.stdout.strip())
+            run_cli("update", str(task_path), "--difficulty", "data model fuzzy", cwd=tmp)
+
+            # reflect.difficulties parses task files in workspace
+            res = subprocess.run(
+                [sys.executable, str(REFLECT_SCRIPT), "difficulties", "--period", "day"],
+                capture_output=True, text=True, cwd=tmp,
+            )
+            self.assertEqual(0, res.returncode, res.stderr)
+            lines = [ln for ln in res.stdout.splitlines() if ln.strip()]
+            self.assertEqual(1, len(lines))
+            self.assertIn("data model fuzzy", lines[0])
+
     def test_review_writes_skeleton_with_snapshot_and_is_write_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             today = date.today().isoformat()

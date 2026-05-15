@@ -209,6 +209,12 @@ aha-skills/
 ├── README.en.md            # 英文 README
 ├── .gitignore
 └── skills/
+    ├── _lib/
+    │   ├── aha_md.py            # 4 个 skill 共用的原语：frontmatter / sanitize /
+    │   │                        # section finder（line-based + fence-aware）/
+    │   │                        # atomic_write / locked_record / workspace_anchor /
+    │   │                        # schema_version / period_range/id 等
+    │   └── tests/test_aha_md.py
     ├── idea/
     │   ├── SKILL.md            # Skill 定义（frontmatter + 工作流）
     │   ├── references/         # skill 按需加载的参考资料
@@ -227,7 +233,7 @@ aha-skills/
     │   ├── SKILL.md
     │   ├── references/          # 5 个子工作流：task-capture / overdue-flow / checkin-flow / log-flow / review-flow
     │   ├── scripts/
-    │   │   └── daily_md.py      # CLI：task / update / checkin / log / scan
+    │   │   └── daily_md.py      # CLI：task / update / checkin / log / scan / review
     │   └── tests/
     │       └── test_daily_md.py
     └── reflect/
@@ -247,6 +253,7 @@ aha-skills/
 ## 跑测试
 
 ```bash
+python3 skills/_lib/tests/test_aha_md.py
 python3 skills/idea/tests/test_idea_md.py
 python3 skills/dao/tests/test_dao_md.py
 python3 skills/daily/tests/test_daily_md.py
@@ -255,8 +262,11 @@ python3 skills/reflect/tests/test_reflect_md.py
 
 ## 通用约定
 
-- 每条记录一个 Markdown 文件；用户原始内容逐字保留。
-- 所有路径相对当前工作目录，通过 `aha-workspace/` 解析。
-- Skill 在运行时永远不要写到 `aha-workspace/<skill>/` 之外。
-- 新增 skill 沿用同款骨架：`SKILL.md`，可选 `scripts/`、`tests/`、`references/`。
+- 每条记录一个 Markdown 文件；用户原始内容逐字保留（`## Raw` 永不覆盖）。
+- workspace 通过 `aha-workspace/.manifest.json` 锚定：CLI 从 cwd 向上找 manifest，找不到则在 cwd 创建一份。manifest 里记录 schema_version / timezone / host_id；TZ 不一致时 stderr 警告。
+- 写路径全部走原子 rename（`atomic_write`）+ flock（`locked_record`），cron 与交互式 agent 并发安全；iCloud/Dropbox 同步不易出 conflict 副本。
+- `update` / `refine` / `checkin` / `discuss` 拒绝写到 `aha-workspace/<skill>/` 之外的路径。
+- 用户原文里的 `## Foo` 在写入时被转义为 `\## Foo`（CommonMark 渲染等同），章节定位是 line-based + fence-aware，不会被 raw text 里的伪标题误导。
+- frontmatter 与章节单行的自由文本字段（`--note` / `--decision` / `--difficulty` 等）会把 `\n` 转为 ↵ 标记，防止 row-injection 伪造 `status: dropped` 等。
+- 新增 skill 沿用同款骨架：`SKILL.md`，可选 `scripts/`、`tests/`、`references/`；从 `skills/_lib/aha_md.py` 复用所有原语。
 
