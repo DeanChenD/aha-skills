@@ -212,6 +212,46 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertEqual("", scan.stdout)
             self.assertTrue(expected_idea_dir(tmp).is_dir())
 
+    def test_capture_rejects_frontmatter_injection_via_category(self):
+        """P0#2 regression: a newline inside --category must not split into
+        a second frontmatter row that forges status / schema_version."""
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli(
+                "capture",
+                "--text", "innocent idea",
+                "--category", "x\nstatus: killed\nschema_version: 99",
+                cwd=tmp,
+            )
+            files = list(expected_idea_dir(tmp).glob("idea-*.md"))
+            self.assertEqual(1, len(files))
+            text = files[0].read_text(encoding="utf-8")
+            # Exactly one status row, and it carries the original status, not "killed"
+            status_rows = [ln for ln in text.splitlines() if ln.startswith("status:")]
+            self.assertEqual(1, len(status_rows))
+            self.assertNotIn("killed", status_rows[0])
+            schema_rows = [ln for ln in text.splitlines() if ln.startswith("schema_version:")]
+            self.assertEqual(["schema_version: 1"], schema_rows)
+            # primary_category line carries the visible newline marker
+            cat_row = next(ln for ln in text.splitlines() if ln.startswith("primary_category:"))
+            self.assertNotIn("\n", cat_row)
+            self.assertIn("↵", cat_row)
+
+    def test_capture_rejects_h2_injection_via_title(self):
+        """P0#2 regression (title path): a newline+## in --title must not
+        split the body into a fake H2 section."""
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli(
+                "capture",
+                "--text", "body text",
+                "--title", "Real title\n## Fake Section",
+                cwd=tmp,
+            )
+            files = list(expected_idea_dir(tmp).glob("idea-*.md"))
+            text = files[0].read_text(encoding="utf-8")
+            # No H2 line whose stripped form is exactly "## Fake Section"
+            h2s = [ln for ln in text.splitlines() if ln.startswith("## ")]
+            self.assertNotIn("## Fake Section", h2s)
+
 
 if __name__ == "__main__":
     unittest.main()

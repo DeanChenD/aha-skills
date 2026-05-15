@@ -21,6 +21,8 @@ from aha_md import (  # noqa: E402
     locked_record,
     parse_dt,
     parse_frontmatter,
+    render_frontmatter,
+    sanitize_single_line,
     save_record,
     set_meta,
     slugify,
@@ -68,22 +70,23 @@ def capture(args):
     timestamp = now.isoformat(timespec="seconds")
     next_review_at = normalize_datetime(args.next_review_at)
     raw_text_safe = escape_pseudo_h2(args.text)
-    body = f"""---
-id: {idea_id}
-schema_version: 1
-status: {args.status}
-created_at: {timestamp}
-updated_at: {timestamp}
-next_review_at: {next_review_at}
-last_prompted_at:
-review_count: 0
-priority: {args.priority}
-source: {args.source}
-primary_category: {args.category or ""}
-tags: {format_tags(args.tags)}
----
-
-# {title}
+    safe_title = escape_pseudo_h2(sanitize_single_line(title))
+    frontmatter = render_frontmatter([
+        ("id", idea_id),
+        ("schema_version", "1"),
+        ("status", args.status),
+        ("created_at", timestamp),
+        ("updated_at", timestamp),
+        ("next_review_at", next_review_at),
+        ("last_prompted_at", ""),
+        ("review_count", "0"),
+        ("priority", args.priority),
+        ("source", args.source),
+        ("primary_category", args.category or ""),
+        ("tags", format_tags(args.tags)),
+    ])
+    body = f"""{frontmatter}
+# {safe_title}
 
 ## Raw Idea
 

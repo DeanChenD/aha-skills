@@ -24,7 +24,9 @@ from aha_md import (  # noqa: E402
     parse_frontmatter_lines,
     parse_tags_field,
     read_section,
+    render_frontmatter,
     replace_section,
+    sanitize_single_line,
     save_record,
     set_meta,
     slugify,
@@ -65,22 +67,23 @@ def title_from_text(text):
 
 def render_dao_skeleton(dao_id, title, raw_text, now, source, priority, category, tags):
     timestamp = now.isoformat(timespec="seconds")
-    return f"""---
-id: {dao_id}
-schema_version: 1
-created_at: {timestamp}
-updated_at: {timestamp}
-last_reviewed_at:
-review_count: 0
-refine_count: 0
-discussion_count: 0
-priority: {priority}
-source: {source}
-primary_category: {category or ""}
-tags: {format_tags(tags)}
----
-
-# {title}
+    safe_title = escape_pseudo_h2(sanitize_single_line(title))
+    frontmatter = render_frontmatter([
+        ("id", dao_id),
+        ("schema_version", "1"),
+        ("created_at", timestamp),
+        ("updated_at", timestamp),
+        ("last_reviewed_at", ""),
+        ("review_count", "0"),
+        ("refine_count", "0"),
+        ("discussion_count", "0"),
+        ("priority", priority),
+        ("source", source),
+        ("primary_category", category or ""),
+        ("tags", format_tags(tags)),
+    ])
+    return f"""{frontmatter}
+# {safe_title}
 
 ## {RAW_HEADING}
 

@@ -26,6 +26,8 @@ from aha_md import (  # noqa: E402
     period_id,
     period_range,
     read_section,
+    render_frontmatter,
+    sanitize_single_line,
     save_record,
     set_meta,
     slugify,
@@ -141,25 +143,26 @@ def parse_time_arg(value):
 
 def render_task_skeleton(task_id, title, description, now, due_at_iso, priority, source, category, tags):
     timestamp = now.isoformat(timespec="seconds")
-    return f"""---
-id: {task_id}
-schema_version: 1
-type: task
-status: pending
-created_at: {timestamp}
-updated_at: {timestamp}
-due_at: {due_at_iso}
-completed_at:
-priority: {priority}
-source: {source}
-primary_category: {category or ""}
-tags: {format_tags(tags)}
-checkin_count: 0
-postpone_count: 0
-difficulty_count: 0
----
-
-# {title}
+    safe_title = escape_pseudo_h2(sanitize_single_line(title))
+    frontmatter = render_frontmatter([
+        ("id", task_id),
+        ("schema_version", "1"),
+        ("type", "task"),
+        ("status", "pending"),
+        ("created_at", timestamp),
+        ("updated_at", timestamp),
+        ("due_at", due_at_iso),
+        ("completed_at", ""),
+        ("priority", priority),
+        ("source", source),
+        ("primary_category", category or ""),
+        ("tags", format_tags(tags)),
+        ("checkin_count", "0"),
+        ("postpone_count", "0"),
+        ("difficulty_count", "0"),
+    ])
+    return f"""{frontmatter}
+# {safe_title}
 
 ## {DESCRIPTION_HEADING}
 
@@ -177,17 +180,18 @@ difficulty_count: 0
 
 def render_log_skeleton(date_str, now, tags):
     timestamp = now.isoformat(timespec="seconds")
-    return f"""---
-date: {date_str}
-schema_version: 1
-type: log
-created_at: {timestamp}
-updated_at: {timestamp}
-entry_count: 0
-tags: {format_tags(tags)}
----
-
-# {date_str}
+    safe_date = sanitize_single_line(date_str)
+    frontmatter = render_frontmatter([
+        ("date", date_str),
+        ("schema_version", "1"),
+        ("type", "log"),
+        ("created_at", timestamp),
+        ("updated_at", timestamp),
+        ("entry_count", "0"),
+        ("tags", format_tags(tags)),
+    ])
+    return f"""{frontmatter}
+# {safe_date}
 """
 
 
@@ -198,14 +202,15 @@ def render_checkin_body(checkin_id, parent_task_id, now, topic, conversation, ta
     safe_takeaway = escape_pseudo_h2(takeaway)
     safe_difficulty = escape_pseudo_h2(difficulty.strip()) if difficulty else "(none)"
     safe_next = escape_pseudo_h2(next_step.strip()) if next_step else "(none)"
-    return f"""---
-checkin_id: {checkin_id}
-schema_version: 1
-parent_task_id: {parent_task_id}
-created_at: {timestamp}
----
-
-# Check-in: {safe_topic}
+    safe_topic_title = escape_pseudo_h2(sanitize_single_line(topic))
+    frontmatter = render_frontmatter([
+        ("checkin_id", checkin_id),
+        ("schema_version", "1"),
+        ("parent_task_id", parent_task_id),
+        ("created_at", timestamp),
+    ])
+    return f"""{frontmatter}
+# Check-in: {safe_topic_title}
 
 ## Prompt 起点
 
@@ -231,7 +236,9 @@ created_at: {timestamp}
 
 def _append_log_entry(body, time_str, title, text):
     body = body.rstrip() + "\n\n"
-    body += f"## {time_str} — {title}\n\n{escape_pseudo_h2(text).strip()}\n"
+    safe_time = sanitize_single_line(time_str)
+    safe_title = sanitize_single_line(title)
+    body += f"## {safe_time} — {safe_title}\n\n{escape_pseudo_h2(text).strip()}\n"
     return body
 
 

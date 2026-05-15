@@ -288,6 +288,37 @@ class DaoMarkdownCliTest(unittest.TestCase):
             # And FAKE REFINED is not its own heading line (collapsed into the note)
             self.assertNotIn("\n## Refined 提炼沉淀\nFAKE REFINED", text)
 
+    def test_capture_rejects_frontmatter_injection_via_source(self):
+        """P0#2 regression: --source 'chat\\nschema_version: 99' must not
+        forge a second frontmatter row at capture time."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli(
+                "capture",
+                "--text", "any thought",
+                "--source", "chat\nschema_version: 99",
+                cwd=tmp,
+            )
+            path = Path(captured.stdout.strip())
+            text = path.read_text(encoding="utf-8")
+            schema_rows = [ln for ln in text.splitlines() if ln.startswith("schema_version:")]
+            self.assertEqual(["schema_version: 1"], schema_rows)
+            source_rows = [ln for ln in text.splitlines() if ln.startswith("source:")]
+            self.assertEqual(1, len(source_rows))
+            self.assertNotIn("\n", source_rows[0])
+
+    def test_capture_rejects_h2_injection_via_title(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli(
+                "capture",
+                "--text", "any thought",
+                "--title", "Real\n## Fake Section",
+                cwd=tmp,
+            )
+            path = Path(captured.stdout.strip())
+            text = path.read_text(encoding="utf-8")
+            h2s = [ln for ln in text.splitlines() if ln.startswith("## ")]
+            self.assertNotIn("## Fake Section", h2s)
+
 
 if __name__ == "__main__":
     unittest.main()

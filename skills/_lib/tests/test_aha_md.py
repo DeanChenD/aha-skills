@@ -85,6 +85,41 @@ class SetMetaInjectionTest(unittest.TestCase):
         dups = sorted(aha_md.duplicate_meta_keys(lines))
         self.assertEqual(["status", "tags"], dups)
 
+    def test_render_frontmatter_sanitizes_every_value(self):
+        """Capture skeletons must build their frontmatter via this primitive
+        so a newline inside any field collapses instead of forging a new row.
+        """
+        block = aha_md.render_frontmatter([
+            ("status", "active"),
+            ("primary_category", "x\nstatus: killed"),
+            ("source", "chat\nschema_version: 99"),
+        ])
+        # Block bounds are stable
+        self.assertTrue(block.startswith("---\n"))
+        self.assertTrue(block.endswith("\n---\n"))
+        # No raw newline in any value
+        body_lines = block.splitlines()
+        for ln in body_lines:
+            if ln.startswith("primary_category:"):
+                self.assertIn("↵", ln)
+            if ln.startswith("source:"):
+                self.assertIn("↵", ln)
+        # Crucially: only one status / source / schema_version row each
+        kinds = {"status:", "primary_category:", "source:", "schema_version:"}
+        for prefix in kinds:
+            count = sum(1 for ln in body_lines if ln.startswith(prefix))
+            self.assertLessEqual(count, 1, f"{prefix} appears {count}x")
+
+    def test_render_frontmatter_empty_value_omits_trailing_space(self):
+        """Empty values render as `key:` (no trailing space) to keep
+        byte-equivalence with prior hand-written skeletons."""
+        block = aha_md.render_frontmatter([
+            ("last_prompted_at", ""),
+            ("review_count", "0"),
+        ])
+        self.assertIn("\nlast_prompted_at:\n", block)
+        self.assertIn("\nreview_count: 0\n", block)
+
     def test_load_record_warns_on_duplicate_keys(self):
         """load_record must surface a warning when duplicates are present,
         so a silent injection cannot persist unnoticed."""

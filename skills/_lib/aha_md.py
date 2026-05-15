@@ -146,6 +146,32 @@ def sanitize_single_line(value):
     return s
 
 
+def render_frontmatter(pairs):
+    """Render an ordered list of (key, value) pairs as a complete frontmatter
+    block, with every value passed through ``sanitize_single_line`` first.
+
+    Single source of truth for capture skeletons across all skills. Building
+    frontmatter via f-strings is the same hazard fixed by ``set_meta`` for
+    update paths: a value containing a literal ``\\n`` would split into
+    multiple frontmatter rows and forge keys (e.g. ``--category 'x\\nstatus:
+    killed'``). Routing every capture path through this primitive closes
+    the injection surface at the only place that emits frontmatter.
+
+    Returns the block including the leading and trailing ``---`` markers
+    and a trailing newline, so callers can concatenate body content
+    directly.
+    """
+    out = ["---"]
+    for key, value in pairs:
+        rendered_value = sanitize_single_line(value) if value is not None else ""
+        if rendered_value == "":
+            out.append(f"{key}:")
+        else:
+            out.append(f"{key}: {rendered_value}")
+    out.append("---")
+    return "\n".join(out) + "\n"
+
+
 def set_meta(lines, key, value):
     """Set or replace a single frontmatter key.
 

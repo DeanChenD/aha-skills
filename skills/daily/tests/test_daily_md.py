@@ -371,6 +371,42 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertNotEqual(out_path.name, second_path.name)
             self.assertTrue(second_path.name.endswith("-2.md"))
 
+    def test_task_capture_rejects_frontmatter_injection_via_category(self):
+        """P0#2 regression: --category 'x\\nstatus: done' must not split into
+        a second status row that lies about the task being already done."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_cli(
+                "task",
+                "--text", "small task",
+                "--category", "x\nstatus: done",
+                cwd=tmp,
+            )
+            path = Path(result.stdout.strip())
+            text = path.read_text(encoding="utf-8")
+            status_rows = [ln for ln in text.splitlines() if ln.startswith("status:")]
+            self.assertEqual(["status: pending"], status_rows)
+            cat_rows = [ln for ln in text.splitlines() if ln.startswith("primary_category:")]
+            self.assertEqual(1, len(cat_rows))
+            self.assertNotIn("\n", cat_rows[0])
+
+    def test_task_capture_rejects_h2_injection_via_title(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_cli(
+                "task",
+                "--text", "any text",
+                "--title", "Real\n## Notes",
+                cwd=tmp,
+            )
+            path = Path(result.stdout.strip())
+            text = path.read_text(encoding="utf-8")
+            # Only the legitimate ## Notes section header survives (the one
+            # render_task_skeleton emits), not a second one synthesized by
+            # the title injection.
+            notes_h2_count = sum(
+                1 for ln in text.splitlines() if ln.strip() == "## Notes"
+            )
+            self.assertEqual(1, notes_h2_count)
+
 
 if __name__ == "__main__":
     unittest.main()
