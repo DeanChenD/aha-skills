@@ -242,5 +242,66 @@ class SchemaVersionTest(unittest.TestCase):
             self.assertEqual("1", meta["schema_version"])
 
 
+class AtomicWriteTest(unittest.TestCase):
+    def test_atomic_write_replaces_completely(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.md"
+            aha_md.atomic_write(path, "first\n")
+            aha_md.atomic_write(path, "second\n")
+            self.assertEqual("second\n", path.read_text(encoding="utf-8"))
+
+    def test_atomic_write_no_tmp_leftover(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.md"
+            aha_md.atomic_write(path, "ok\n")
+            siblings = [p.name for p in path.parent.iterdir()]
+            # Only the final file (and any lock files), no `.x.md.tmp.*`
+            tmp_files = [n for n in siblings if ".tmp." in n]
+            self.assertEqual([], tmp_files)
+
+
+class LockedRecordConcurrencyTest(unittest.TestCase):
+    """Two threads simultaneously appending to the same daily log file —
+    without locking, they race and one entry is silently dropped. With
+    locking, both entries land."""
+
+    def test_concurrent_log_appends_both_entries_land(self):
+        import subprocess
+        import threading
+
+        REPO = Path(__file__).resolve().parents[3]
+        DAILY_SCRIPT = REPO / "skills" / "daily" / "scripts" / "daily_md.py"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            errors = []
+
+            def append_log(text, time_str):
+                try:
+                    subprocess.run(
+                        [sys.executable, str(DAILY_SCRIPT), "log",
+                         "--text", text, "--time", time_str,
+                         "--title", text],
+                        check=True, capture_output=True, text=True, cwd=tmp,
+                    )
+                except subprocess.CalledProcessError as e:
+                    errors.append((e.returncode, e.stderr))
+
+            t1 = threading.Thread(target=append_log, args=("entry-A", "08:00"))
+            t2 = threading.Thread(target=append_log, args=("entry-B", "09:00"))
+            t1.start(); t2.start()
+            t1.join(); t2.join()
+
+            self.assertEqual([], errors)
+
+            log_dir = Path(tmp) / "aha-workspace" / "daily" / "logs"
+            log_files = list(log_dir.glob("log-*.md"))
+            self.assertEqual(1, len(log_files))
+            content = log_files[0].read_text(encoding="utf-8")
+            self.assertIn("entry-A", content)
+            self.assertIn("entry-B", content)
+            # entry_count must reflect both appends (not 1 due to lost write)
+            self.assertIn("entry_count: 2", content)
+
+
 if __name__ == "__main__":
     unittest.main()

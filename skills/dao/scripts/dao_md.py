@@ -10,12 +10,14 @@ from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     append_to_section,
     assert_workspace_path,
+    atomic_write,
     ensure_dir,
     escape_pseudo_h2,
     format_tags,
     int_meta,
     load_record,
     local_now,
+    locked_record,
     parse_dt,
     parse_frontmatter_lines,
     parse_tags_field,
@@ -117,13 +119,19 @@ def capture(args):
         args.category,
         args.tags,
     )
-    path.write_text(body, encoding="utf-8")
+    atomic_write(path, body)
     print(path)
 
 
 def refine(args):
     path = Path(args.file).expanduser().resolve()
     assert_workspace_path(path, "dao")
+    with locked_record(path):
+        _do_refine(path, args)
+    print(path)
+
+
+def _do_refine(path, args):
     lines, meta, body = load_record(path)
     now = local_now()
 
@@ -141,12 +149,17 @@ def refine(args):
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
 
     save_record(path, lines, body)
-    print(path)
 
 
 def discuss(args):
     path = Path(args.file).expanduser().resolve()
     assert_workspace_path(path, "dao")
+    with locked_record(path):
+        session_path = _do_discuss(path, args)
+    print(session_path)
+
+
+def _do_discuss(path, args):
     lines, meta, body = load_record(path)
     now = local_now()
 
@@ -184,7 +197,7 @@ created_at: {timestamp}
 
 {safe_takeaway}
 """
-    session_path.write_text(session_body, encoding="utf-8")
+    atomic_write(session_path, session_body)
 
     rel_link = (Path("..") / "sessions" / session_path.name).as_posix()
     summary_line = (
@@ -196,7 +209,7 @@ created_at: {timestamp}
     set_meta(lines, "updated_at", timestamp)
 
     save_record(path, lines, body)
-    print(session_path)
+    return session_path
 
 
 def _scan_sort(candidates, mode):
@@ -247,11 +260,12 @@ def scan(args):
             # representing an actual user re-engagement.
             review_count = int_meta(meta, "review_count")
         else:
-            review_count = int_meta(meta, "review_count") + 1
-            fm_lines, _ = split_frontmatter(path.read_text(encoding="utf-8"))
-            set_meta(fm_lines, "review_count", str(review_count))
-            set_meta(fm_lines, "last_reviewed_at", timestamp)
-            save_record(path, fm_lines, body)
+            with locked_record(path):
+                fm_lines, fresh_body = split_frontmatter(path.read_text(encoding="utf-8"))
+                review_count = int_meta(parse_frontmatter_lines(fm_lines), "review_count") + 1
+                set_meta(fm_lines, "review_count", str(review_count))
+                set_meta(fm_lines, "last_reviewed_at", timestamp)
+                save_record(path, fm_lines, fresh_body)
         print(
             f"{review_count}\t{meta.get('updated_at', '')}\t{meta.get('id', '')}\t{path}\t{title}"
         )
@@ -260,6 +274,12 @@ def scan(args):
 def update(args):
     path = Path(args.file).expanduser().resolve()
     assert_workspace_path(path, "dao")
+    with locked_record(path):
+        _do_update(path, args)
+    print(path)
+
+
+def _do_update(path, args):
     lines, _meta, body = load_record(path)
     now = local_now()
 
@@ -275,7 +295,6 @@ def update(args):
         body = append_to_section(body, NOTES_HEADING, f"- {now.date().isoformat()}: {args.note}")
 
     save_record(path, lines, body)
-    print(path)
 
 
 def main():

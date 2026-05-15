@@ -9,12 +9,14 @@ from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     append_to_section,
     assert_workspace_path,
+    atomic_write,
     ensure_dir,
     escape_pseudo_h2,
     format_tags,
     int_meta,
     load_record,
     local_now,
+    locked_record,
     parse_dt,
     parse_frontmatter,
     save_record,
@@ -118,13 +120,19 @@ TBD
 
 ## Notes
 """
-    path.write_text(body, encoding="utf-8")
+    atomic_write(path, body)
     print(path)
 
 
 def update(args):
     path = Path(args.file).expanduser().resolve()
     assert_workspace_path(path, "idea")
+    with locked_record(path):
+        _do_update(path, args)
+    print(path)
+
+
+def _do_update(path, args):
     lines, meta, body = load_record(path)
 
     now = local_now()
@@ -153,7 +161,6 @@ def update(args):
         body = append_to_section(body, "Notes", f"- {now.date().isoformat()}: {args.note}")
 
     save_record(path, lines, body)
-    print(path)
 
 
 def scan(args):
@@ -189,13 +196,14 @@ def scan(args):
     for path, status, updated, next_review in rows:
         if not args.peek:
             # Mark this idea as prompted now, so the next scan within
-            # cooldown will skip it (unless the agent calls update --prompted
-            # explicitly; this is the implicit mark for cron contexts).
+            # cooldown will skip it. Lock so a parallel update doesn't lose
+            # writes against this surface mark.
             try:
-                lines, body = split_frontmatter(path.read_text(encoding="utf-8"))
-                if lines:
-                    set_meta(lines, "last_prompted_at", now.isoformat(timespec="seconds"))
-                    save_record(path, lines, body)
+                with locked_record(path):
+                    lines, body = split_frontmatter(path.read_text(encoding="utf-8"))
+                    if lines:
+                        set_meta(lines, "last_prompted_at", now.isoformat(timespec="seconds"))
+                        save_record(path, lines, body)
             except OSError:
                 pass
         print(f"{status}\t{updated}\t{next_review}\t{path}")

@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
+    atomic_write,
     ensure_dir,
     local_now,
     parse_dt,
@@ -427,7 +428,7 @@ sources: [idea, dao, daily]
 
 <待与用户讨论后填写；agent 不要单方面预填。1-3 条"意图"（不是 goals）。>
 """
-    path.write_text(body, encoding="utf-8")
+    atomic_write(path, body)
     print(path)
 
 

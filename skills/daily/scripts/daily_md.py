@@ -10,12 +10,14 @@ from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     append_to_section,
     assert_workspace_path,
+    atomic_write,
     ensure_dir,
     escape_pseudo_h2,
     format_tags,
     int_meta,
     load_record,
     local_now,
+    locked_record,
     parse_dt,
     parse_frontmatter_lines,
     parse_tags_field,
@@ -256,13 +258,19 @@ def task(args):
         args.category,
         args.tags,
     )
-    path.write_text(body, encoding="utf-8")
+    atomic_write(path, body)
     print(path)
 
 
 def update(args):
     path = Path(args.file).expanduser().resolve()
     assert_workspace_path(path, "daily")
+    with locked_record(path):
+        _do_update(path, args)
+    print(path)
+
+
+def _do_update(path, args):
     lines, meta, body = load_record(path)
     now = local_now()
 
@@ -307,12 +315,17 @@ def update(args):
 
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
     save_record(path, lines, body)
-    print(path)
 
 
 def checkin(args):
     path = Path(args.file).expanduser().resolve()
     assert_workspace_path(path, "daily")
+    with locked_record(path):
+        checkin_path = _do_checkin(path, args)
+    print(checkin_path)
+
+
+def _do_checkin(path, args):
     lines, meta, body = load_record(path)
     now = local_now()
 
@@ -324,7 +337,8 @@ def checkin(args):
     checkins_dir = default_checkins_dir()
     ensure_dir(checkins_dir)
     checkin_path = checkins_dir / f"{checkin_id}.md"
-    checkin_path.write_text(
+    atomic_write(
+        checkin_path,
         render_checkin_body(
             checkin_id,
             parent_id,
@@ -335,7 +349,6 @@ def checkin(args):
             args.difficulty,
             args.next_step,
         ),
-        encoding="utf-8",
     )
 
     rel_link = (Path("..") / "check-ins" / checkin_path.name).as_posix()
@@ -357,7 +370,7 @@ def checkin(args):
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
 
     save_record(path, lines, body)
-    print(checkin_path)
+    return checkin_path
 
 
 def log(args):
@@ -372,20 +385,25 @@ def log(args):
     title = args.title.strip() if args.title else " ".join(args.text.strip().split())[:40] or "无题"
 
     path = root / f"log-{target_date.isoformat()}.md"
-    if not path.exists():
-        path.write_text(render_log_skeleton(target_date.isoformat(), now, args.tags), encoding="utf-8")
 
-    lines, meta, body = load_record(path)
-    body = _append_log_entry(body, time_str, title, args.text)
+    # Lock from skeleton-init through append: cron + chat could both observe
+    # path.exists() == False, both write skeleton (last writer wins, first
+    # writer's empty skeleton is fine), but their subsequent
+    # load → append → save would race and clobber the prior entry.
+    with locked_record(path):
+        if not path.exists():
+            atomic_write(path, render_log_skeleton(target_date.isoformat(), now, args.tags))
+        lines, meta, body = load_record(path)
+        body = _append_log_entry(body, time_str, title, args.text)
 
-    new_count = int_meta(meta, "entry_count") + 1
-    set_meta(lines, "entry_count", str(new_count))
-    set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
-    if args.tags:
-        merged = union_tags(meta.get("tags", "[]"), args.tags)
-        set_meta(lines, "tags", merged)
+        new_count = int_meta(meta, "entry_count") + 1
+        set_meta(lines, "entry_count", str(new_count))
+        set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
+        if args.tags:
+            merged = union_tags(meta.get("tags", "[]"), args.tags)
+            set_meta(lines, "tags", merged)
 
-    save_record(path, lines, body)
+        save_record(path, lines, body)
     print(path)
 
 
@@ -699,7 +717,7 @@ created_at: {now.isoformat(timespec="seconds")}
 
 <待与用户讨论后填写；agent 不要单方面预填。1-3 条具体的"意图"（不是 goals）。>
 """
-    path.write_text(body, encoding="utf-8")
+    atomic_write(path, body)
     print(path)
 
 

@@ -20,9 +20,17 @@ This module has no I/O side effects on import.
 
 import hashlib
 import json
+import os
 import re
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
+
+try:
+    import fcntl  # POSIX-only; aha-skills targets macOS/Linux hosts.
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False
 
 
 WORKSPACE_DIR_NAME = "aha-workspace"
@@ -335,6 +343,64 @@ def load_record(path, expected_schema_version=CURRENT_SCHEMA_VERSION):
     meta = parse_frontmatter_lines(lines)
     assert_schema_version(meta, path=path, expected=expected_schema_version)
     return lines, meta, body
+
+
+def atomic_write(path, content):
+    """Write `content` to `path` atomically.
+
+    Strategy: write to a per-process tmp sibling, then os.replace() onto path
+    (POSIX atomic rename). Survives crashes mid-write — readers either see the
+    old file or the complete new file, never a half file. Also reduces
+    iCloud/Dropbox conflict-copy frequency since the cloud sync sees a
+    single rename event rather than a long write stream.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    tmp.write_text(content, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def save_record(path, lines, body):
+    atomic_write(
+        path,
+        "---\n" + "\n".join(lines) + "\n---\n" + body,
+    )
+
+
+@contextmanager
+def locked_record(path):
+    """Acquire an exclusive flock for the duration of a read-modify-write
+    cycle on a record file.
+
+    Use case: scheduler (cron) and an interactive agent both want to
+    `update --note` the same task at nearly the same moment. Without a lock,
+    they each load + mutate + save and the later save silently overwrites
+    the earlier mutation. With this context manager, the second writer
+    waits until the first releases the lock.
+
+    The lock file lives at `<dirname>/.<basename>.lock`. It is created if
+    missing and never auto-removed (lock files are stable; ephemeral
+    creation/deletion races would defeat the lock).
+
+    On platforms without fcntl (e.g. Windows), the lock is a no-op — daily
+    use of aha-skills targets macOS/Linux hosts.
+    """
+    path = Path(path)
+    if not _HAS_FCNTL:
+        yield
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_name(f".{path.name}.lock")
+    fh = open(lock_path, "w")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        finally:
+            fh.close()
 
 
 def save_record(path, lines, body):
