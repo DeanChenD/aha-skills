@@ -1,12 +1,20 @@
 ---
 name: idea
-description: Use when the user invokes /idea, says "我有个想法 / 想到一个 / 记一下这个点子 / 灵光一闪 / 帮我看看这个 idea / 有什么 idea 还没处理", records a sudden idea, asks to maintain an idea inbox, turn an idea into a research task, create follow-up questions, review stale ideas, remind the user to continue, or decide whether an idea should become a plan / be paused / be killed.
-version: 0.1.0
+description: Use when the user invokes /idea, surfaces an outward-facing thing they might want to do / build / research / decide later (i.e. something to incubate before action), or asks to maintain their idea inbox, continue a stalled idea, or kill one. Distinguish from `dao` (inward realizations, no action expected) and `daily` (today's tasks with deadlines).
+version: 0.2.0
 ---
 
 # Idea
 
 Use this skill to turn fleeting ideas into durable Markdown idea records and push them through a lightweight incubation loop: capture, classify, research, plan, decide.
+
+## Triggers (examples, not exhaustive)
+
+The description above routes on intent. These are concrete phrasings users have used — keep updating as new ones surface, but do not rely on this list alone:
+
+- 中文：「我有个想法」「想到一个」「记一下这个点子」「灵光一闪」「帮我看看这个 idea」「有什么 idea 还没处理」「这个先放着孵化」「pause 一下」
+- English: "I have an idea", "let me park this", "what's in my idea inbox", "kill that one", "let's incubate this", "turn this into a research task"
+- Slash: `/idea`
 
 ## Storage
 

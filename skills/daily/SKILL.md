@@ -1,10 +1,20 @@
 ---
 name: daily
-description: Use when the user invokes /daily, says "今天要做..." / "加个待办" / "今天没做完..." / "想推迟到..." / "这件事进展..." / "聊聊X的卡点" / "记一笔" / "今天感觉..." / "刚刚..." / "看看这周/今天的事" / "周回顾" / "月回顾" / "复盘" or "todo / due / overdue / postpone / weekly review / monthly review / log this / daily journal / let's check in on X", or asks to add a todo / log a difficulty / record a check-in / see what's overdue / produce a daily-weekly-monthly review.
-version: 0.1.0
+description: Use when the user invokes /daily, manages today's rhythm — adding a todo with a deadline, asking what's overdue, postponing with a reason, checking in on a task's progress, logging a free-form moment, or producing a day/week/month review. Distinguish from `idea` (still-incubating outward thoughts, no deadline) and `dao` (inward insights to sit with). Single-source review (this week's tasks + logs) lives here; cross-source pattern mining lives in `reflect`.
+version: 0.2.0
 ---
 
 # Daily
+
+## Triggers (examples, not exhaustive)
+
+The description above routes on intent. These are concrete phrasings users have used — keep updating as new ones surface, but do not rely on this list alone:
+
+- 中文：「今天要做……」「加个待办」「今天没做完……」「想推迟到……」「这件事进展……」「聊聊 X 的卡点」「记一笔」「今天感觉……」「刚刚……」「看看这周 / 今天的事」「周回顾」「月回顾」「复盘」
+- English: "todo: …", "what's overdue", "let's postpone X to …", "let's check in on X", "log this", "daily journal", "weekly review", "monthly review", "let's debrief"
+- Slash: `/daily`
+
+> Disambiguation tip: "刚刚……" and "记一笔" most often go to `daily.log` (free-form moment of the day). If the content is a *realization* the user wants to sit with, route to `dao` instead. If it's an *action* they might pursue later, route to `idea`.
 
 Use this skill to manage the rhythm of getting things done and reflecting on each day:
 

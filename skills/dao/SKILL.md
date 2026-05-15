@@ -1,12 +1,20 @@
 ---
 name: dao
-description: Use when the user invokes /dao, says they "悟到 / 想通 / 感悟到了 / 想明白了" something or "I just realized / had an insight / want to write this thought down", asks to refine an existing insight ("再帮我提炼一下" / "refine this further"), wants to dive into a philosophical discussion of one ("展开聊聊 / 和我探讨一下" / "let's discuss this more deeply"), or asks to scan/review past insights ("翻翻以前的感悟" / "回顾一下" / "look back at past insights").
-version: 0.1.0
+description: Use when the user invokes /dao, shares an inward realization or insight they want to sit with rather than act on, asks to refine an existing insight, asks to discuss one philosophically, or asks to resurface past insights. Distinguish from `idea` (outward action) and `daily` (rhythm/tasks). Recognizes Chinese realization phrases like "悟到 / 想通 / 感悟到" as well as English equivalents.
+version: 0.2.0
 ---
 
 # Dao
 
 Use this skill to capture personal insights ("感悟" / 道) as Markdown, polish them into a refined sediment, optionally explore them through philosophical discussion, and periodically resurface old ones for review.
+
+## Triggers (examples, not exhaustive)
+
+The description above routes on intent. These are concrete phrasings users have used — keep updating as new ones surface, but do not rely on this list alone:
+
+- 中文：「我悟到了」「想通了」「感悟到」「想明白了」「再帮我提炼一下」「重新整理一下」「展开聊聊」「和我探讨一下」「翻翻以前的感悟」「回顾一下感悟」
+- English: "I just realized", "I had an insight", "I want to write this thought down", "refine this further", "let's discuss this more deeply", "look back at past insights"
+- Slash: `/dao`
 
 This skill does **not** force a status workflow. It is a set of four discrete actions on a Markdown record: `capture`, `refine`, `discuss`, `scan` (plus a generic `update`). The user decides which action to invoke; the agent never auto-promotes a record between states.
 
