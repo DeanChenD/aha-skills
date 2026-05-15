@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -146,13 +147,45 @@ def sanitize_single_line(value):
 
 
 def set_meta(lines, key, value):
+    """Set or replace a single frontmatter key.
+
+    If the key occurs multiple times (e.g. a prior injection wrote a second
+    ``status:`` row), replace the first occurrence and drop all later ones,
+    so the file ends up with exactly one canonical row. Without this,
+    ``parse_frontmatter_lines`` is last-key-wins while ``set_meta`` was
+    first-key-only — update could never overwrite an injected duplicate.
+    """
     rendered = f"{key}: {sanitize_single_line(value)}"
     prefix = f"{key}:"
-    for index, line in enumerate(lines):
+    first = None
+    keep = []
+    for line in lines:
         if line.startswith(prefix):
-            lines[index] = rendered
-            return
-    lines.append(rendered)
+            if first is None:
+                first = len(keep)
+                keep.append(rendered)
+            # else: drop duplicate
+        else:
+            keep.append(line)
+    if first is None:
+        keep.append(rendered)
+    lines[:] = keep
+
+
+def duplicate_meta_keys(lines):
+    """Return frontmatter keys that appear on more than one line.
+
+    Read-side counterpart to ``set_meta``: callers can warn or auto-clean
+    when a record carries multiple ``status:`` (or similar) rows from a
+    past injection or a half-synced edit.
+    """
+    seen = {}
+    for line in lines:
+        if ":" not in line:
+            continue
+        key = line.split(":", 1)[0].strip()
+        seen[key] = seen.get(key, 0) + 1
+    return [k for k, n in seen.items() if n > 1]
 
 
 def _section_offsets(body):
@@ -449,6 +482,15 @@ def load_record(path, expected_schema_version=CURRENT_SCHEMA_VERSION):
     lines, body = split_frontmatter(text)
     if not lines:
         raise SystemExit(f"Missing frontmatter: {path}")
+    dups = duplicate_meta_keys(lines)
+    if dups:
+        # Last-key-wins parsing means the injected row is what we read; warn
+        # so the operator notices, and let the next save_record (via set_meta)
+        # collapse them automatically.
+        sys.stderr.write(
+            f"warning: duplicate frontmatter key(s) {dups} in {path}; "
+            "value reflects last occurrence — re-saving will normalize.\n"
+        )
     meta = parse_frontmatter_lines(lines)
     assert_schema_version(meta, path=path, expected=expected_schema_version)
     return lines, meta, body

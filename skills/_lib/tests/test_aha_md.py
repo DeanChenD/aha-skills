@@ -62,6 +62,47 @@ class SetMetaInjectionTest(unittest.TestCase):
         self.assertEqual(2, len(lines))
         self.assertNotIn("\n", lines[1])
 
+    def test_set_meta_collapses_duplicate_keys(self):
+        """If a record carries two `status:` rows (e.g. from a past
+        injection), set_meta must overwrite the first AND drop the second
+        — otherwise parse_frontmatter_lines (last-key-wins) keeps reading
+        the injected value forever."""
+        lines = [
+            "status: active",
+            "tags: []",
+            "status: dropped",  # injected duplicate
+        ]
+        aha_md.set_meta(lines, "status", "active")
+        # Exactly one status row remains
+        status_lines = [ln for ln in lines if ln.startswith("status:")]
+        self.assertEqual(1, len(status_lines))
+        self.assertEqual("status: active", status_lines[0])
+        # parse_frontmatter_lines now returns the canonical value
+        self.assertEqual("active", aha_md.parse_frontmatter_lines(lines)["status"])
+
+    def test_duplicate_meta_keys_detector(self):
+        lines = ["status: a", "tags: []", "status: b", "tags: [x]"]
+        dups = sorted(aha_md.duplicate_meta_keys(lines))
+        self.assertEqual(["status", "tags"], dups)
+
+    def test_load_record_warns_on_duplicate_keys(self):
+        """load_record must surface a warning when duplicates are present,
+        so a silent injection cannot persist unnoticed."""
+        import io
+        import contextlib
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rec.md"
+            path.write_text(
+                "---\nschema_version: 1\nstatus: active\nstatus: dropped\n---\nbody\n",
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with contextlib.redirect_stderr(buf):
+                lines, meta, body = aha_md.load_record(path)
+            self.assertIn("duplicate frontmatter key", buf.getvalue())
+            # last-wins is preserved; the warning is the contract
+            self.assertEqual("dropped", meta["status"])
+
 
 class AppendToSectionInjectionTest(unittest.TestCase):
     def test_append_with_newline_does_not_split_section(self):
