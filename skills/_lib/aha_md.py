@@ -323,14 +323,38 @@ def int_meta(meta, key):
 
 
 def unique_path(root, base_id):
+    """Reserve a new record path atomically and return ``(id, path)``.
+
+    Creates the target file via ``O_CREAT | O_EXCL`` so two concurrent
+    captures racing for the same ``base_id`` will deterministically land on
+    different files (one wins ``base_id.md``; the other gets
+    ``base_id-2.md``). The previous ``exists()`` polling implementation
+    silently lost the second writer when both calls saw a free path before
+    either ran ``write_text``.
+
+    The returned file exists as an empty placeholder; callers must follow
+    immediately with ``atomic_write`` / ``save_record`` to populate it.
+    A crash between reservation and write leaves an orphan empty record,
+    which is recoverable but visible — preferable to silently overwriting
+    another record's body.
+    """
+    Path(root).mkdir(parents=True, exist_ok=True)
     candidate_id = base_id
-    candidate_path = Path(root) / f"{candidate_id}.md"
     counter = 2
-    while candidate_path.exists():
-        candidate_id = f"{base_id}-{counter}"
+    while True:
         candidate_path = Path(root) / f"{candidate_id}.md"
-        counter += 1
-    return candidate_id, candidate_path
+        try:
+            fd = os.open(
+                str(candidate_path),
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o644,
+            )
+        except FileExistsError:
+            candidate_id = f"{base_id}-{counter}"
+            counter += 1
+            continue
+        os.close(fd)
+        return candidate_id, candidate_path
 
 
 def assert_workspace_path(path, skill_name):

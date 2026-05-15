@@ -368,6 +368,66 @@ class AtomicWriteTest(unittest.TestCase):
             self.assertEqual([], tmp_files)
 
 
+class UniquePathReservationTest(unittest.TestCase):
+    """Two concurrent captures with the same base_id (same timestamp +
+    same slug) must end up with two distinct files. The previous
+    `exists()`-poll implementation lost the second writer when both
+    saw the path free before either wrote."""
+
+    def test_unique_path_creates_empty_placeholder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cid, path = aha_md.unique_path(Path(tmp), "rec-001")
+            self.assertEqual("rec-001", cid)
+            self.assertTrue(path.exists())
+            self.assertEqual("", path.read_text(encoding="utf-8"))
+
+    def test_unique_path_bumps_when_taken(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            aha_md.unique_path(Path(tmp), "rec-001")
+            cid2, path2 = aha_md.unique_path(Path(tmp), "rec-001")
+            self.assertEqual("rec-001-2", cid2)
+            self.assertTrue(path2.exists())
+
+    def test_concurrent_unique_path_calls_all_distinct(self):
+        """Spawn N processes that all reserve the same base_id; each must
+        get its own path. Without O_EXCL, exists() polling lets multiple
+        racers see a free path and one would clobber the others on write."""
+        import multiprocessing
+
+        N = 20
+        BASE = "rec-race"
+
+        def worker(tmp_str, q):
+            try:
+                cid, path = aha_md.unique_path(Path(tmp_str), BASE)
+                # Write distinct content so an overwrite would be visible
+                path.write_text(f"id={cid}\n", encoding="utf-8")
+                q.put((cid, str(path), None))
+            except Exception as e:  # pragma: no cover
+                q.put((None, None, repr(e)))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = multiprocessing.get_context("fork")
+            q = ctx.Queue()
+            procs = [ctx.Process(target=worker, args=(tmp, q)) for _ in range(N)]
+            for p in procs:
+                p.start()
+            for p in procs:
+                p.join(timeout=15)
+                self.assertEqual(0, p.exitcode)
+
+            results = [q.get(timeout=1) for _ in range(N)]
+            errors = [r[2] for r in results if r[2] is not None]
+            self.assertEqual([], errors)
+            ids = sorted(r[0] for r in results)
+            paths = sorted(r[1] for r in results)
+            self.assertEqual(N, len(set(ids)), f"id collision: {ids}")
+            self.assertEqual(N, len(set(paths)), f"path collision: {paths}")
+            on_disk = sorted(p.name for p in Path(tmp).iterdir() if p.suffix == ".md")
+            self.assertEqual(N, len(on_disk),
+                             f"expected {N} files, got {len(on_disk)}")
+
+
 class LockedRecordConcurrencyTest(unittest.TestCase):
     """Two threads simultaneously appending to the same daily log file —
     without locking, they race and one entry is silently dropped. With
