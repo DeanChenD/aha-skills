@@ -361,3 +361,20 @@ def period_range(period, anchor):
         last = next_first - timedelta(days=1)
         return first, last
     raise SystemExit(f"Unknown period: {period}")
+
+
+def period_id(period, start, end=None):
+    """Match daily.review / reflect.save naming.
+
+    - day   → YYYY-MM-DD
+    - week  → YYYY-Www (ISO week)
+    - month → YYYY-MM
+    """
+    if period == "day":
+        return start.isoformat()
+    if period == "week":
+        iso_year, iso_week, _ = start.isocalendar()
+        return f"{iso_year}-W{iso_week:02d}"
+    if period == "month":
+        return start.strftime("%Y-%m")
+    raise SystemExit(f"Unknown period: {period}")

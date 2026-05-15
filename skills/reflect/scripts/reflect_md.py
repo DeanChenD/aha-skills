@@ -25,6 +25,7 @@ from aha_md import (  # noqa: E402
     parse_dt,
     parse_frontmatter_lines,
     parse_tags_field,
+    period_id,
     period_range,
     read_section,
     split_frontmatter,
@@ -72,18 +73,6 @@ def parse_date_str(value):
         return date.fromisoformat(value)
     except ValueError:
         return None
-
-
-def period_id(period, start, end):
-    """Match daily.review naming: YYYY-MM-DD / YYYY-Www / YYYY-MM."""
-    if period == "day":
-        return start.isoformat()
-    if period == "week":
-        iso_year, iso_week, _ = start.isocalendar()
-        return f"{iso_year}-W{iso_week:02d}"
-    if period == "month":
-        return start.strftime("%Y-%m")
-    raise SystemExit(f"Unknown period: {period}")
 
 
 def in_range(target_date, start, end):

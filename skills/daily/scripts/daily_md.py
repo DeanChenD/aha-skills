@@ -19,7 +19,9 @@ from aha_md import (  # noqa: E402
     parse_dt,
     parse_frontmatter_lines,
     parse_tags_field,
+    period_id,
     period_range,
+    read_section,
     save_record,
     set_meta,
     slugify,
@@ -551,6 +553,156 @@ def scan(args):
         print(line)
 
 
+DIFFICULTY_LINE_RE = re.compile(
+    r"^- (\d{4}-\d{2}-\d{2})(?: \(check-in [^)]+\))?: (.+)$"
+)
+
+
+def _collect_difficulties_in_range(start, end):
+    out = []
+    for path, meta, body in _load_task_records():
+        section = read_section(body, DIFFICULTY_LOG_HEADING)
+        if not section:
+            continue
+        title = title_from_body(body)
+        for raw in section.splitlines():
+            match = DIFFICULTY_LINE_RE.match(raw.strip())
+            if not match:
+                continue
+            try:
+                d = date.fromisoformat(match.group(1))
+            except ValueError:
+                continue
+            if start <= d <= end:
+                out.append((d, meta.get("id", ""), path, title, match.group(2).strip()))
+    return out
+
+
+def _render_review_snapshot(start, end):
+    """Single-source snapshot of daily/. Mirrors reflect.save's daily portion
+    but covers all the tasks/logs/difficulties of this period in one view."""
+    tasks = [r for r in _load_task_records()]
+    tasks_in = []
+    for path, meta, body in tasks:
+        updated = parse_dt(meta.get("updated_at"))
+        completed = parse_dt(meta.get("completed_at"))
+        in_window = (
+            (updated is not None and start <= updated.date() <= end)
+            or (completed is not None and start <= completed.date() <= end)
+        )
+        if in_window:
+            tasks_in.append((path, meta, body))
+
+    completed_in = [(p, m, b) for p, m, b in tasks_in if m.get("status") == "done"]
+    active_after = [(p, m, b) for p, m, b in tasks_in if m.get("status") in ("pending", "in_progress", "blocked")]
+    dropped_in = [(p, m, b) for p, m, b in tasks_in if m.get("status") == "dropped"]
+
+    logs_in = []
+    for path, meta, body in _load_log_records():
+        try:
+            log_date = date.fromisoformat(meta.get("date", ""))
+        except ValueError:
+            continue
+        if start <= log_date <= end:
+            logs_in.append((path, meta, body))
+    logs_in.sort(key=lambda r: r[1].get("date", ""))
+
+    difficulties = _collect_difficulties_in_range(start, end)
+
+    lines = []
+    lines.append(f"### Tasks touched ({len(tasks_in)} touched, {len(completed_in)} done, {len(dropped_in)} dropped)")
+    if tasks_in:
+        for _, meta, body in tasks_in:
+            due = meta.get("due_at", "")[:10] or "-"
+            lines.append(
+                f"- {meta.get('status', '?'):<11} | due {due} | "
+                f"{meta.get('id', '')} — {title_from_body(body)}"
+            )
+    else:
+        lines.append("- (none in range)")
+    lines.append("")
+
+    lines.append(f"### Active by end of range ({len(active_after)})")
+    if active_after:
+        for _, meta, body in active_after:
+            due = meta.get("due_at", "")[:10] or "-"
+            lines.append(
+                f"- {meta.get('status', '?'):<11} | due {due} | "
+                f"{meta.get('id', '')} — {title_from_body(body)}"
+            )
+    else:
+        lines.append("- (none)")
+    lines.append("")
+
+    lines.append(f"### Logs ({len(logs_in)})")
+    if logs_in:
+        for _, meta, _body in logs_in:
+            tags = parse_tags_field(meta.get("tags", ""))
+            tag_str = ", ".join(tags) if tags else "-"
+            lines.append(
+                f"- {meta.get('date', '?')} | {meta.get('entry_count', '0')} entries "
+                f"| tags: [{tag_str}]"
+            )
+    else:
+        lines.append("- (none in range)")
+    lines.append("")
+
+    lines.append(f"### Difficulties ({len(difficulties)})")
+    if difficulties:
+        for d, task_id, _p, _t, text in difficulties:
+            lines.append(f"- {d.isoformat()} ({task_id}): {text}")
+    else:
+        lines.append("- (none in range)")
+
+    return "\n".join(lines)
+
+
+def review(args):
+    anchor_str = args.date
+    try:
+        anchor = date.fromisoformat(anchor_str) if anchor_str else local_now().date()
+    except ValueError:
+        raise SystemExit(f"Invalid --date: {anchor_str}")
+    start, end = period_range(args.period, anchor)
+    pid = period_id(args.period, start, end)
+
+    root = default_reviews_dir()
+    ensure_dir(root)
+    review_id, path = unique_path(root, f"review-{pid}")
+
+    snapshot_md = _render_review_snapshot(start, end)
+    now = local_now()
+    body = f"""---
+review_id: {review_id}
+schema_version: 1
+period: {args.period}
+range_start: {start.isoformat()}
+range_end: {end.isoformat()}
+created_at: {now.isoformat(timespec="seconds")}
+---
+
+# Review: {pid}
+
+## 范围
+
+{start.isoformat()} → {end.isoformat()}
+
+## Source Snapshot
+
+{snapshot_md}
+
+## 模式与启示
+
+<待与用户讨论后填写；agent 不要单方面预填。读完上面的 Source Snapshot 之后与用户多轮交流，再写下 3-7 条本周观察。>
+
+## 下阶段意图
+
+<待与用户讨论后填写；agent 不要单方面预填。1-3 条具体的"意图"（不是 goals）。>
+"""
+    path.write_text(body, encoding="utf-8")
+    print(path)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=f"Daily skill: tasks, logs, check-ins, scan. Records in {TASKS_DIR_DISPLAY} and siblings."
@@ -600,6 +752,14 @@ def main():
     p_log.add_argument("--date", help="YYYY-MM-DD (defaults to today, local).")
     p_log.add_argument("--tags", help="Comma-separated tags (union'd into the day's tag set).")
     p_log.set_defaults(func=log)
+
+    p_review = sub.add_parser(
+        "review",
+        help="Write a daily review skeleton pre-filled with this period's tasks/logs/difficulties (write-once, never overwrites).",
+    )
+    p_review.add_argument("--period", choices=list(PERIODS), required=True)
+    p_review.add_argument("--date", help="Anchor date YYYY-MM-DD (default: today, local).")
+    p_review.set_defaults(func=review)
 
     p_scan = sub.add_parser("scan", help="Query tasks (and logs in period mode).")
     p_scan.add_argument("--mode", choices=list(SCAN_MODES), default="active")

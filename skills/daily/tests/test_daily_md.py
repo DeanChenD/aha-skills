@@ -294,5 +294,37 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertIn("alpha", lines[0])
 
 
+    def test_review_writes_skeleton_with_snapshot_and_is_write_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            today = date.today().isoformat()
+            run_cli("task", "--text", "ship spec", "--due", "2099-01-01", "--tags", "work", cwd=tmp)
+            run_cli("log", "--text", "afternoon focus dip", "--time", "14:30", "--date", today, "--tags", "mood", cwd=tmp)
+
+            res = run_cli("review", "--period", "week", cwd=tmp)
+            out_path = Path(res.stdout.strip())
+            self.assertTrue(out_path.exists())
+            self.assertEqual(
+                (Path(tmp) / "aha-workspace" / "daily" / "reviews").resolve(),
+                out_path.parent.resolve(),
+            )
+
+            text = out_path.read_text(encoding="utf-8")
+            self.assertIn("schema_version: 1", text)
+            self.assertIn("period: week", text)
+            self.assertIn("### Tasks touched", text)
+            self.assertIn("ship spec", text)
+            self.assertIn("### Logs (1)", text)
+            self.assertIn("## 模式与启示", text)
+            self.assertIn("## 下阶段意图", text)
+            # P1#7 placeholder discipline mirrored from reflect
+            self.assertIn("不要单方面预填", text)
+
+            # Write-once: second invocation creates -2.md, not overwrite
+            res2 = run_cli("review", "--period", "week", cwd=tmp)
+            second_path = Path(res2.stdout.strip())
+            self.assertNotEqual(out_path.name, second_path.name)
+            self.assertTrue(second_path.name.endswith("-2.md"))
+
+
 if __name__ == "__main__":
     unittest.main()
