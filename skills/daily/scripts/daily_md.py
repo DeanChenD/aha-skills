@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
+    UNTRUSTED_CONTENT_BANNER,
     WORKSPACE_DIR_NAME,
     add_text_input_args,
     append_to_section,
@@ -29,6 +30,7 @@ from aha_md import (  # noqa: E402
     period_range,
     read_section,
     render_frontmatter,
+    render_untrusted_inline,
     resolve_text_input,
     sanitize_single_line,
     save_record,
@@ -644,14 +646,14 @@ def _render_review_snapshot(start, end):
 
     difficulties = _collect_difficulties_in_range(start, end)
 
-    lines = []
+    lines = [UNTRUSTED_CONTENT_BANNER, ""]
     lines.append(f"### Tasks touched ({len(tasks_in)} touched, {len(completed_in)} done, {len(dropped_in)} dropped)")
     if tasks_in:
         for _, meta, body in tasks_in:
             due = meta.get("due_at", "")[:10] or "-"
             lines.append(
                 f"- {meta.get('status', '?'):<11} | due {due} | "
-                f"{meta.get('id', '')} — {title_from_body(body)}"
+                f"{meta.get('id', '')} — {render_untrusted_inline(title_from_body(body))}"
             )
     else:
         lines.append("- (none in range)")
@@ -663,7 +665,7 @@ def _render_review_snapshot(start, end):
             due = meta.get("due_at", "")[:10] or "-"
             lines.append(
                 f"- {meta.get('status', '?'):<11} | due {due} | "
-                f"{meta.get('id', '')} — {title_from_body(body)}"
+                f"{meta.get('id', '')} — {render_untrusted_inline(title_from_body(body))}"
             )
     else:
         lines.append("- (none)")
@@ -685,7 +687,9 @@ def _render_review_snapshot(start, end):
     lines.append(f"### Difficulties ({len(difficulties)})")
     if difficulties:
         for d, task_id, _p, _t, text in difficulties:
-            lines.append(f"- {d.isoformat()} ({task_id}): {text}")
+            lines.append(
+                f"- {d.isoformat()} ({task_id}): {render_untrusted_inline(text)}"
+            )
     else:
         lines.append("- (none in range)")
 

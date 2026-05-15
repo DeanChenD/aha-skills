@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
+    UNTRUSTED_CONTENT_BANNER,
     WORKSPACE_DIR_NAME,
     atomic_write,
     check_manifest_consistency,
@@ -31,6 +32,7 @@ from aha_md import (  # noqa: E402
     period_id,
     period_range,
     read_section,
+    render_untrusted_inline,
     split_frontmatter,
     title_from_body,
     unique_path,
@@ -275,7 +277,7 @@ def difficulties(args):
 
 
 def _render_snapshot(records, args, start, end):
-    lines = []
+    lines = [UNTRUSTED_CONTENT_BANNER, ""]
     by_source = {"idea": [], "dao": [], "daily.task": [], "daily.log": []}
     for rec in records:
         source = rec[0]
@@ -290,7 +292,7 @@ def _render_snapshot(records, args, start, end):
             tag_str = ", ".join(tags) if tags else "-"
             lines.append(
                 f"- {meta.get('status', '?'):<11} | tags: [{tag_str}] | "
-                f"{meta.get('id', '')} — {title_from_body(body)}"
+                f"{meta.get('id', '')} — {render_untrusted_inline(title_from_body(body))}"
             )
     else:
         lines.append("- (none in range)")
@@ -305,7 +307,7 @@ def _render_snapshot(records, args, start, end):
             tag_str = ", ".join(tags) if tags else "-"
             lines.append(
                 f"- {updated} | tags: [{tag_str}] | "
-                f"{meta.get('id', '')} — {title_from_body(body)}"
+                f"{meta.get('id', '')} — {render_untrusted_inline(title_from_body(body))}"
             )
     else:
         lines.append("- (none in range)")
@@ -320,7 +322,7 @@ def _render_snapshot(records, args, start, end):
             due = meta.get("due_at", "")[:10] or "-"
             lines.append(
                 f"- {meta.get('status', '?'):<11} | due {due} | "
-                f"{meta.get('id', '')} — {title_from_body(body)}"
+                f"{meta.get('id', '')} — {render_untrusted_inline(title_from_body(body))}"
             )
     else:
         lines.append("- (none in range)")
@@ -346,7 +348,9 @@ def _render_snapshot(records, args, start, end):
     lines.append(f"### daily.difficulties ({len(diffs)})")
     if diffs:
         for d, task_id, _path, _title, text in diffs:
-            lines.append(f"- {d.isoformat()} ({task_id}): {text}")
+            lines.append(
+                f"- {d.isoformat()} ({task_id}): {render_untrusted_inline(text)}"
+            )
     else:
         lines.append("- (none in range)")
 
