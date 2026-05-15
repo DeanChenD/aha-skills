@@ -467,7 +467,14 @@ def atomic_write(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
     tmp.write_text(content, encoding="utf-8")
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def save_record(path, lines, body):
@@ -510,12 +517,6 @@ def locked_record(path):
             fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
         finally:
             fh.close()
-
-
-def save_record(path, lines, body):
-    Path(path).write_text(
-        "---\n" + "\n".join(lines) + "\n---\n" + body, encoding="utf-8"
-    )
 
 
 def period_range(period, anchor):

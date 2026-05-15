@@ -259,6 +259,38 @@ class AtomicWriteTest(unittest.TestCase):
             tmp_files = [n for n in siblings if ".tmp." in n]
             self.assertEqual([], tmp_files)
 
+    def test_save_record_uses_atomic_write(self):
+        """Regression: a second `save_record` definition (plain write_text)
+        once silently shadowed the atomic version. If a write fails mid-way,
+        the original file must remain intact (atomic rename semantics)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rec.md"
+            aha_md.save_record(path, ["status: active"], "body v1\n")
+            self.assertIn("status: active", path.read_text(encoding="utf-8"))
+
+            real_replace = os.replace
+            calls = {"n": 0}
+
+            def boom(src, dst):
+                calls["n"] += 1
+                raise OSError("simulated mid-rename failure")
+
+            os.replace = boom
+            try:
+                with self.assertRaises(OSError):
+                    aha_md.save_record(path, ["status: tampered"], "body v2\n")
+            finally:
+                os.replace = real_replace
+
+            self.assertEqual(1, calls["n"])
+            # Original file still intact, never half-written
+            self.assertIn("status: active", path.read_text(encoding="utf-8"))
+            self.assertIn("body v1", path.read_text(encoding="utf-8"))
+            # No leftover .tmp file
+            siblings = [p.name for p in path.parent.iterdir()]
+            tmp_files = [n for n in siblings if ".tmp." in n]
+            self.assertEqual([], tmp_files)
+
 
 class LockedRecordConcurrencyTest(unittest.TestCase):
     """Two threads simultaneously appending to the same daily log file —
