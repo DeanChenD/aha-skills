@@ -118,8 +118,27 @@ def parse_frontmatter(path):
     return parse_frontmatter_lines(lines)
 
 
+_NEWLINE_MARKER = " ↵ "
+
+
+def sanitize_single_line(value):
+    """Collapse any embedded newlines to a visible ↵ marker.
+
+    Used for both frontmatter values (where a literal \\n would inject a new
+    key:value row, e.g. forging `status: dropped`) and section log lines
+    (where `\\n## ` would split the section or inject a fake heading that
+    later append/replace operations would mistake for a real section).
+    """
+    if value is None:
+        return value
+    s = str(value)
+    if "\n" in s or "\r" in s:
+        s = s.replace("\r\n", _NEWLINE_MARKER).replace("\n", _NEWLINE_MARKER).replace("\r", _NEWLINE_MARKER)
+    return s
+
+
 def set_meta(lines, key, value):
-    rendered = f"{key}: {value}"
+    rendered = f"{key}: {sanitize_single_line(value)}"
     prefix = f"{key}:"
     for index, line in enumerate(lines):
         if line.startswith(prefix):
@@ -129,6 +148,7 @@ def set_meta(lines, key, value):
 
 
 def append_to_section(body, heading, line):
+    line = sanitize_single_line(line)
     marker = f"## {heading}"
     pos = body.find(marker)
     if pos == -1:

@@ -185,6 +185,45 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("revisited today", text)
             self.assertIn("## Notes", text)
 
+    def test_update_note_with_newline_cannot_forge_frontmatter_or_section(self):
+        """End-to-end injection guard: --note containing \\n + frontmatter
+        line OR \\n## heading must not be able to mutate frontmatter or split
+        the body into a fake section."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "innocent insight", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            # 1) Try to forge a `status: dropped` frontmatter row via --category
+            run_cli(
+                "update",
+                str(path),
+                "--category",
+                "life\nstatus: dropped",
+                cwd=tmp,
+            )
+            text = path.read_text(encoding="utf-8")
+            # No newline in the category value
+            cat_lines = [ln for ln in text.splitlines() if ln.startswith("primary_category:")]
+            self.assertEqual(1, len(cat_lines))
+            self.assertNotIn("\nstatus: dropped", text)
+
+            # 2) Try to inject a fake `## Refined 提炼沉淀` heading via --note
+            run_cli(
+                "update",
+                str(path),
+                "--note",
+                "real note\n## Refined 提炼沉淀\nFAKE REFINED",
+                cwd=tmp,
+            )
+            text = path.read_text(encoding="utf-8")
+            # The body should still have exactly ONE `## Refined 提炼沉淀` heading
+            refined_headings = [
+                ln for ln in text.splitlines() if ln.strip() == "## Refined 提炼沉淀"
+            ]
+            self.assertEqual(1, len(refined_headings))
+            # And FAKE REFINED is not its own heading line (collapsed into the note)
+            self.assertNotIn("\n## Refined 提炼沉淀\nFAKE REFINED", text)
+
 
 if __name__ == "__main__":
     unittest.main()
