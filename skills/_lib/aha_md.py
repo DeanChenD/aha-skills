@@ -698,7 +698,6 @@ def doctor_workspace():
     - the cwd-nesting hazard (manifest fallback would create
       `aha-workspace/aha-workspace/`).
     """
-    here = Path.cwd().resolve()
     problems = []
     notes = []
     # Try the anchor — workspace_anchor itself surfaces the nesting hazard

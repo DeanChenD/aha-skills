@@ -339,7 +339,7 @@ def difficulties(args):
             ]))
 
 
-def _render_snapshot(records, args, start, end):
+def _render_snapshot(records, start, end):
     lines = [UNTRUSTED_CONTENT_BANNER, ""]
     by_source = {"idea": [], "dao": [], "daily.task": [], "daily.log": []}
     for rec in records:
@@ -475,7 +475,7 @@ def save(args):
                     f"parse_error={h['parse_error']}\n"
                 )
         raise SystemExit(2)
-    snapshot_md, _diffs = _render_snapshot(records, args, start, end)
+    snapshot_md, _diffs = _render_snapshot(records, start, end)
     tag_summary = _render_tag_summary(records)
     source_health = _render_source_health(health)
 
