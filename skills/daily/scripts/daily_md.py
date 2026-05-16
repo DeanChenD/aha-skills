@@ -738,16 +738,16 @@ def review(args):
 
     snapshot_md = _render_review_snapshot(start, end)
     now = local_now()
-    body = f"""---
-review_id: {review_id}
-type: review
-schema_version: 1
-period: {args.period}
-range_start: {start.isoformat()}
-range_end: {end.isoformat()}
-created_at: {now.isoformat(timespec="seconds")}
----
-
+    frontmatter = render_frontmatter([
+        ("review_id", review_id),
+        ("type", "review"),
+        ("schema_version", "1"),
+        ("period", args.period),
+        ("range_start", start.isoformat()),
+        ("range_end", end.isoformat()),
+        ("created_at", now.isoformat(timespec="seconds")),
+    ])
+    body = f"""{frontmatter}
 # Review: {pid}
 
 ## 范围

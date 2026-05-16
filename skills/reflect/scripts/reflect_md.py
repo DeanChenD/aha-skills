@@ -35,6 +35,7 @@ from aha_md import (  # noqa: E402
     period_range,
     read_section,
     read_text_or_warn,
+    render_frontmatter,
     render_untrusted_inline,
     schema_version_compatible,
     split_frontmatter,
@@ -479,17 +480,17 @@ def save(args):
     source_health = _render_source_health(health)
 
     now = local_now()
-    body = f"""---
-reflect_id: {reflect_id}
-type: reflect
-schema_version: 1
-period: {args.period}
-range_start: {start.isoformat()}
-range_end: {end.isoformat()}
-created_at: {now.isoformat(timespec="seconds")}
-sources: [idea, dao, daily]
----
-
+    frontmatter = render_frontmatter([
+        ("reflect_id", reflect_id),
+        ("type", "reflect"),
+        ("schema_version", "1"),
+        ("period", args.period),
+        ("range_start", start.isoformat()),
+        ("range_end", end.isoformat()),
+        ("created_at", now.isoformat(timespec="seconds")),
+        ("sources", "[idea, dao, daily]"),
+    ])
+    body = f"""{frontmatter}
 # Reflect: {pid}
 
 ## 范围
