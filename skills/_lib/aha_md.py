@@ -751,14 +751,27 @@ def _manifest_path():
     return workspace_anchor() / WORKSPACE_DIR_NAME / ".manifest.json"
 
 
+class ManifestCorruptError(Exception):
+    """The manifest file exists but cannot be read or parsed.
+
+    Distinct from "missing": a missing manifest is the first-run case,
+    but a corrupt one means there is preserved workspace state we must
+    not silently overwrite. ensure_workspace_manifest re-raises this
+    as SystemExit so the caller bails to doctor instead of clobbering
+    the original creator / created_at fields.
+    """
+
+
 def _read_manifest():
+    """Load the manifest payload. Returns None if missing; raises
+    ManifestCorruptError if the file is present but unreadable / not JSON."""
     p = _manifest_path()
     if not p.exists():
         return None
     try:
         return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ManifestCorruptError(f"{p}: {type(exc).__name__}: {exc}") from exc
 
 
 def ensure_workspace_manifest():
@@ -770,10 +783,16 @@ def ensure_workspace_manifest():
     On subsequent calls: refresh last_touched_by + last_touched_at so a
     multi-host workspace's manifest reflects the most recent writer
     rather than only the host that originally created the workspace.
-    Other fields are preserved; if the manifest is corrupt it gets
-    rewritten from scratch. Idempotent w.r.t. data shape.
+    Other fields are preserved.
+
+    If the manifest exists but is corrupt (unreadable / not JSON), bail
+    with SystemExit pointing to ``doctor`` rather than silently
+    overwriting it: a corrupt manifest may still preserve the original
+    host_id / created_at fields when manually inspected, and clobbering
+    those with the current host's values destroys provenance.
     """
     import socket
+    import sys as _sys
     p = _manifest_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -781,7 +800,16 @@ def ensure_workspace_manifest():
     except OSError:
         host = "unknown"
     now_iso = local_now().isoformat(timespec="seconds")
-    existing = _read_manifest()
+    try:
+        existing = _read_manifest()
+    except ManifestCorruptError as exc:
+        raise SystemExit(
+            f"workspace manifest is corrupt: {exc}\n"
+            "Refusing to overwrite — the file may still hold the original "
+            "host_id / created_at fields. Run `<skill>_md.py doctor` (or "
+            "any skill's `doctor` subcommand) for diagnosis, then either "
+            "repair by hand or delete .manifest.json to recreate from scratch."
+        ) from exc
     if existing is None:
         payload = {
             "schema_version": CURRENT_SCHEMA_VERSION,
@@ -807,12 +835,23 @@ def check_manifest_consistency():
     """Read the manifest (if present) and stderr-warn on TZ or schema drift.
 
     Safe to call from any CLI main(). Silent when no manifest exists or when
-    everything matches.
+    everything matches. A corrupt manifest is reported to stderr but does
+    not raise — the read paths that call this function (scan / aggregate /
+    tags) are non-mutating, so refusing to load is unhelpful. Mutation
+    paths re-raise via ensure_workspace_manifest before any write happens.
     """
-    manifest = _read_manifest()
+    import sys as _sys
+    try:
+        manifest = _read_manifest()
+    except ManifestCorruptError as exc:
+        print(
+            f"warning: workspace manifest is corrupt and is being ignored "
+            f"for this read-only command: {exc}. Run `doctor` for details.",
+            file=_sys.stderr,
+        )
+        return
     if manifest is None:
         return
-    import sys as _sys
     expected_name = manifest.get("timezone_name") or ""
     cur_name = _detect_iana_tz()
     if expected_name and cur_name:

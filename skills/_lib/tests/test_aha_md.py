@@ -1039,6 +1039,45 @@ class WorkspaceManifestTest(unittest.TestCase):
                 "2020-01-01T00:00:00", second["last_touched_at"]
             )
 
+    def test_ensure_manifest_refuses_to_overwrite_corrupt_file(self):
+        # R3#8: a corrupt manifest may still hold the original
+        # host_id / created_at / timezone fields when manually inspected.
+        # Earlier behavior silently rewrote it as a fresh "first run"
+        # payload, destroying provenance. The new behavior bails with
+        # SystemExit and a hint to run `doctor`.
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            ws = Path(tmp) / "aha-workspace"
+            ws.mkdir()
+            mp = ws / ".manifest.json"
+            mp.write_text("{this is not valid json", encoding="utf-8")
+            original = mp.read_text(encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                aha_md.ensure_workspace_manifest()
+            self.assertIn("manifest is corrupt", str(ctx.exception))
+            self.assertIn("doctor", str(ctx.exception))
+            # The corrupt file is left untouched, not silently overwritten.
+            self.assertEqual(original, mp.read_text(encoding="utf-8"))
+
+    def test_check_consistency_warns_but_does_not_raise_on_corrupt(self):
+        # R3#8: read-only commands (scan / aggregate / tags) call
+        # check_manifest_consistency, which must keep working when the
+        # manifest is corrupt — the user is just trying to look at their
+        # records, not write. Stderr-warn and continue.
+        import io as _io
+        from contextlib import redirect_stderr
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            ws = Path(tmp) / "aha-workspace"
+            ws.mkdir()
+            (ws / ".manifest.json").write_text(
+                "{not valid", encoding="utf-8"
+            )
+            err = _io.StringIO()
+            with redirect_stderr(err):
+                aha_md.check_manifest_consistency()
+            self.assertIn("manifest is corrupt", err.getvalue())
+
     def test_check_consistency_warns_on_tz_mismatch(self):
         import io as _io
         import json as _json
