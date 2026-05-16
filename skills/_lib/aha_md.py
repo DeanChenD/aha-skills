@@ -539,6 +539,52 @@ def assert_record_path(path, skill_name, subdir=None, required_type=None):
 CURRENT_SCHEMA_VERSION = 1
 
 
+# Schema migration framework
+# ---------------------------
+# ``MIGRATIONS`` maps ``(from_version, to_version)`` to a callable
+# ``(meta: dict, body: str) -> (meta, body)`` that upgrades a record
+# in place. The dict is intentionally empty until v2 exists; declaring
+# the structure now means a future v1→v2 only needs to:
+#   1. add an entry to ``MIGRATIONS``,
+#   2. bump ``CURRENT_SCHEMA_VERSION`` to 2,
+#   3. extend the `migrate` CLI subcommand routing.
+# without redesigning the protocol mid-rollout.
+MIGRATIONS = {}
+
+
+def migrate_record(meta, body, *, target=CURRENT_SCHEMA_VERSION):
+    """Apply chained migrations to bring ``meta``/``body`` up to ``target``.
+
+    Returns the migrated ``(meta, body)`` or the original pair if no
+    migration is needed. Raises ``SystemExit`` when the source version is
+    newer than ``target`` (we don't downgrade) or when a needed migration
+    step is missing.
+    """
+    raw = meta.get("schema_version")
+    try:
+        current = int(raw) if raw else 1
+    except (TypeError, ValueError):
+        raise SystemExit(f"Unparseable schema_version for migration: {raw!r}")
+    if current == target:
+        return meta, body
+    if current > target:
+        raise SystemExit(
+            f"Cannot downgrade record from v{current} to v{target}."
+        )
+    while current < target:
+        step = MIGRATIONS.get((current, current + 1))
+        if step is None:
+            raise SystemExit(
+                f"No migration registered for v{current} → v{current + 1}. "
+                "Add an entry to aha_md.MIGRATIONS before rolling forward."
+            )
+        meta, body = step(meta, body)
+        meta = dict(meta)  # ensure migration step's returned dict is mutable
+        meta["schema_version"] = str(current + 1)
+        current += 1
+    return meta, body
+
+
 def _current_tz_str():
     """Return current local TZ as +HH:MM."""
     raw = datetime.now().astimezone().strftime("%z")

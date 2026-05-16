@@ -420,6 +420,57 @@ class SchemaVersionTest(unittest.TestCase):
             self.assertEqual("1", meta["schema_version"])
 
 
+class MigrateRecordTest(unittest.TestCase):
+    """P1#22: migration framework placeholder. Today v1 is the only
+    schema, so migrate_record is a no-op for v1 records — but the
+    chained protocol (v1→v2→v3) is wired so a future version only
+    needs to register a step in MIGRATIONS."""
+
+    def test_noop_when_at_target(self):
+        meta = {"schema_version": "1", "id": "x"}
+        body = "body"
+        out_meta, out_body = aha_md.migrate_record(meta, body)
+        self.assertEqual(meta, out_meta)
+        self.assertEqual(body, out_body)
+
+    def test_legacy_missing_version_treated_as_v1(self):
+        meta = {"id": "x"}
+        body = "b"
+        out_meta, out_body = aha_md.migrate_record(meta, body)
+        # No upgrade because target is also v1; meta unchanged
+        self.assertEqual(meta, out_meta)
+
+    def test_refuses_to_downgrade(self):
+        meta = {"schema_version": "5"}
+        with self.assertRaises(SystemExit) as cm:
+            aha_md.migrate_record(meta, "b", target=1)
+        self.assertIn("downgrade", str(cm.exception))
+
+    def test_chain_applies_registered_steps(self):
+        # Simulate registering a v1→v2 migration just for this test
+        original = aha_md.MIGRATIONS.copy()
+        try:
+            def v1_to_v2(meta, body):
+                new_meta = dict(meta)
+                new_meta["upgraded"] = "yes"
+                return new_meta, body + " (v2)"
+            aha_md.MIGRATIONS[(1, 2)] = v1_to_v2
+            meta = {"schema_version": "1", "id": "x"}
+            out_meta, out_body = aha_md.migrate_record(meta, "b", target=2)
+            self.assertEqual("2", out_meta["schema_version"])
+            self.assertEqual("yes", out_meta["upgraded"])
+            self.assertEqual("b (v2)", out_body)
+        finally:
+            aha_md.MIGRATIONS.clear()
+            aha_md.MIGRATIONS.update(original)
+
+    def test_missing_step_errors_clearly(self):
+        meta = {"schema_version": "1"}
+        with self.assertRaises(SystemExit) as cm:
+            aha_md.migrate_record(meta, "b", target=2)
+        self.assertIn("No migration registered for v1 → v2", str(cm.exception))
+
+
 class SchemaVersionCompatibleTest(unittest.TestCase):
     """P1#7: read-path callers (scan / reflect / daily aggregation) must
     skip records carrying an unknown schema_version instead of
