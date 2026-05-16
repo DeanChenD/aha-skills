@@ -20,13 +20,14 @@ idea_md = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(idea_md)
 
 
-def run_cli(*args, cwd=None):
+def run_cli(*args, cwd=None, input_stdin=None):
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         check=True,
         capture_output=True,
         text=True,
         cwd=str(cwd) if cwd is not None else None,
+        input=input_stdin,
     )
 
 
@@ -139,6 +140,30 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertIn("review_count: 1", text)
             self.assertIn("Ready for a concrete plan.", text)
             self.assertIn("CLI update works.", text)
+
+    def test_update_decision_and_note_via_stdin(self):
+        # R3#5: --decision and --note are user-derived free-text fields.
+        # Mirror --text's stdin/file entry points so agents assembling
+        # bash for chat-derived decisions/notes don't have to inline
+        # untrusted text into shell quotes (which would execute $(...) /
+        # backticks).
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "raw idea", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            run_cli(
+                "update", str(path), "--decision-stdin",
+                cwd=tmp, input_stdin="$(whoami) wants to ship this.",
+            )
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("$(whoami) wants to ship this.", text)
+
+            run_cli(
+                "update", str(path), "--note-stdin",
+                cwd=tmp, input_stdin="follow-up: `rm -rf /` not sanitized.",
+            )
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("follow-up: `rm -rf /` not sanitized.", text)
 
     def test_scan_lists_due_active_ideas(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -164,10 +164,12 @@ def _do_update(path, args):
         set_meta(lines, "review_count", str(args.review_count))
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
 
-    if args.decision:
-        body = append_to_section(body, "Decision Log", f"- {now.date().isoformat()}: {args.decision}")
-    if args.note:
-        body = append_to_section(body, "Notes", f"- {now.date().isoformat()}: {args.note}")
+    decision_text = resolve_text_input(args, "decision")
+    if decision_text:
+        body = append_to_section(body, "Decision Log", f"- {now.date().isoformat()}: {decision_text}")
+    note_text = resolve_text_input(args, "note")
+    if note_text:
+        body = append_to_section(body, "Notes", f"- {now.date().isoformat()}: {note_text}")
 
     verify_unchanged_since(path, pre_mtime, force=args.force)
     save_record(path, lines, body)
@@ -275,8 +277,14 @@ def main():
     p_update.add_argument("--prompted", action="store_true", help="Set last_prompted_at to now.")
     p_update.add_argument("--bump-review", action="store_true", help="Increment review_count by one.")
     p_update.add_argument("--review-count", type=int)
-    p_update.add_argument("--decision", help="Append an entry to Decision Log.")
-    p_update.add_argument("--note", help="Append an entry to Notes.")
+    add_text_input_args(
+        p_update, "decision", required=False,
+        help_text="Append an entry to Decision Log.",
+    )
+    add_text_input_args(
+        p_update, "note", required=False,
+        help_text="Append an entry to Notes.",
+    )
     p_update.add_argument(
         "--force", action="store_true",
         help="Skip the cross-host mtime conflict check; overwrite even if "

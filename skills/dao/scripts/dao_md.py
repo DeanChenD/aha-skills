@@ -323,8 +323,9 @@ def _do_update(path, args):
         set_meta(lines, "priority", args.priority)
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
 
-    if args.note:
-        body = append_to_section(body, NOTES_HEADING, f"- {now.date().isoformat()}: {args.note}")
+    note_text = resolve_text_input(args, "note")
+    if note_text:
+        body = append_to_section(body, NOTES_HEADING, f"- {now.date().isoformat()}: {note_text}")
         # Engagement: appending a note counts as review touch.
         # Field-only edits (category / tags / priority) do not.
         _bump_review(lines, meta, now)
@@ -420,7 +421,10 @@ def main():
     p_update.add_argument("--category")
     p_update.add_argument("--tags", help="Comma-separated tags.")
     p_update.add_argument("--priority", choices=["low", "medium", "high"])
-    p_update.add_argument("--note", help="Append an entry to ## Notes.")
+    add_text_input_args(
+        p_update, "note", required=False,
+        help_text="Append an entry to ## Notes.",
+    )
     add_text_input_args(
         p_update,
         "context",

@@ -36,7 +36,12 @@ printf '%s' "$RAW_IDEA" | python3 <skill-dir>/scripts/idea_md.py capture --text-
 python3 <skill-dir>/scripts/idea_md.py capture --text-file ./raw.txt --source chat
 
 python3 <skill-dir>/scripts/idea_md.py scan --stale-days 7 --include-paused
+# Status / metadata edits with a static-literal decision are fine:
 python3 <skill-dir>/scripts/idea_md.py update ./aha-workspace/idea/idea-md/<file>.md --status planning --decision "Ready for a concrete plan." --bump-review
+# When the decision / note text comes from chat (may contain $(...) /
+# backticks), pipe via stdin instead — same rule as --text:
+printf '%s' "$DECISION" | python3 <skill-dir>/scripts/idea_md.py update ./aha-workspace/idea/idea-md/<file>.md --decision-stdin
+printf '%s' "$NOTE" | python3 <skill-dir>/scripts/idea_md.py update ./aha-workspace/idea/idea-md/<file>.md --note-stdin
 ```
 
 ## Capture Workflow

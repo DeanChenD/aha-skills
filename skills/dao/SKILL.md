@@ -38,7 +38,10 @@ python3 <skill-dir>/scripts/dao_md.py discuss ./aha-workspace/dao/dao-md/<file>.
     --topic-file ./topic.txt --conversation-file ./conv.txt --takeaway-file ./takeaway.txt
 
 python3 <skill-dir>/scripts/dao_md.py scan --mode random --limit 3
-python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.md --note "<context>"
+python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.md --note "<short literal>"
+# When the note text comes from chat (may contain $(...) / backticks),
+# pipe via stdin instead — same rule as --text:
+printf '%s' "$NOTE" | python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.md --note-stdin
 printf '%s' "$CTX" | python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.md --context-stdin
 ```
 

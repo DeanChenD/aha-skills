@@ -235,6 +235,23 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertNotIn("After yesterday's call with X.", text)
             self.assertIn("review_count: 2", text)
 
+    def test_update_note_via_stdin(self):
+        # R3#5: --note is a user-derived free-text field. Mirror --text's
+        # stdin entry so agents assembling bash for chat-derived notes
+        # don't inline untrusted text into shell quotes.
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "raw insight", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            run_cli(
+                "update", str(path), "--note-stdin",
+                cwd=tmp,
+                input_stdin="$(whoami) revisited this.",
+            )
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("$(whoami) revisited this.", text)
+            self.assertIn("review_count: 1", text)
+
     def test_update_context_via_stdin(self):
         # R3#4: --context-stdin pipes raw text without going through the
         # shell, mirroring capture / refine. SKILL.md's storage block
