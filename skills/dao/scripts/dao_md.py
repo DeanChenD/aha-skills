@@ -181,11 +181,14 @@ def _do_discuss(path, args):
     parent_id = meta.get("id") or path.stem
     new_count = int_meta(meta, "discussion_count") + 1
     session_index = f"{new_count:03d}"
-    session_id = f"{parent_id}-session-{session_index}"
+    base_session_id = f"{parent_id}-session-{session_index}"
 
     sessions_dir = default_sessions_dir()
     ensure_dir(sessions_dir)
-    session_path = sessions_dir / f"{session_id}.md"
+    # P1#12: reserve atomically. If a prior crash left a session-001 on
+    # disk while the parent's discussion_count was rolled back, the
+    # reserved path bumps to `-2` instead of clobbering the orphan.
+    session_id, session_path = unique_path(sessions_dir, base_session_id)
 
     timestamp = now.isoformat(timespec="seconds")
     topic = resolve_text_input(args, "topic")

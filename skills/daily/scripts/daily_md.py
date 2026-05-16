@@ -369,7 +369,7 @@ def _do_checkin(path, args):
     parent_id = meta.get("id") or path.stem
     new_count = int_meta(meta, "checkin_count") + 1
     checkin_index = f"{new_count:03d}"
-    checkin_id = f"{parent_id}-checkin-{checkin_index}"
+    base_checkin_id = f"{parent_id}-checkin-{checkin_index}"
 
     topic = resolve_text_input(args, "topic")
     conversation = resolve_text_input(args, "conversation")
@@ -379,7 +379,10 @@ def _do_checkin(path, args):
 
     checkins_dir = default_checkins_dir()
     ensure_dir(checkins_dir)
-    checkin_path = checkins_dir / f"{checkin_id}.md"
+    # P1#12: reserve atomically. If a prior crash left a checkin-001 on
+    # disk while the parent's checkin_count rolled back, the reserved
+    # path bumps to `-2` instead of clobbering the orphan.
+    checkin_id, checkin_path = unique_path(checkins_dir, base_checkin_id)
     atomic_write(
         checkin_path,
         render_checkin_body(

@@ -342,6 +342,43 @@ class DaoMarkdownCliTest(unittest.TestCase):
             # And FAKE REFINED is not its own heading line (collapsed into the note)
             self.assertNotIn("\n## Refined 提炼沉淀\nFAKE REFINED", text)
 
+    def test_discuss_does_not_clobber_orphan_session_file(self):
+        """P1#12: if an orphan session-001 sits in the sessions/ dir
+        (e.g. a prior crash, or a manual file the user created), the
+        next discuss must reserve a fresh path (`session-001-2.md`)
+        instead of overwriting the orphan."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "seed", cwd=tmp)
+            dao_path = Path(captured.stdout.strip())
+            sessions_dir = (
+                Path(tmp) / "aha-workspace" / "dao" / "sessions"
+            ).resolve()
+            sessions_dir.mkdir(parents=True, exist_ok=True)
+
+            # Plant an orphan session-001 for this parent dao
+            parent_id = next(
+                ln.split(": ", 1)[1] for ln in dao_path.read_text(encoding="utf-8").splitlines()
+                if ln.startswith("id:")
+            )
+            orphan = sessions_dir / f"{parent_id}-session-001.md"
+            orphan.write_text("ORPHAN CONTENT", encoding="utf-8")
+
+            run_cli(
+                "discuss", str(dao_path),
+                "--topic", "t", "--conversation", "c", "--takeaway", "k",
+                cwd=tmp,
+            )
+
+            # Orphan untouched
+            self.assertEqual("ORPHAN CONTENT", orphan.read_text(encoding="utf-8"))
+            # A reserved path was used instead
+            siblings = sorted(p.name for p in sessions_dir.glob("*.md"))
+            self.assertIn(f"{parent_id}-session-001.md", siblings)  # orphan
+            self.assertTrue(
+                any("session-001-2" in n for n in siblings),
+                f"expected bumped session-001-2 path; got {siblings}",
+            )
+
     def test_refine_refuses_session_file_as_if_it_were_dao_record(self):
         """P0#5: dao refine/discuss/update operate on the canonical record
         in dao-md/. A session file in sessions/ lives in the same skill
