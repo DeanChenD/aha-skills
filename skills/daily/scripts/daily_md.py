@@ -588,9 +588,7 @@ def scan(args):
         raise SystemExit("--mode period requires --period day|week|month")
 
     requested_type = args.type
-    if requested_type == "all" and args.mode != "period":
-        requested_type = "task"
-    if args.mode != "period" and requested_type == "log" and args.mode != "due-today":
+    if args.mode not in ("period", "due-today") and requested_type in ("all", "log"):
         requested_type = "task"
 
     output_lines = []

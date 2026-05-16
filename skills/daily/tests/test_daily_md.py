@@ -341,6 +341,39 @@ class DailyMarkdownCliTest(unittest.TestCase):
             scan = run_cli("scan", "--mode", "due-today", "--status", "done", cwd=tmp)
             self.assertIn("finished today", scan.stdout)
 
+    def test_scan_due_today_with_type_all_includes_logs(self):
+        # R3#1: --mode due-today --type all (and the default --type all)
+        # must surface today's logs alongside today's tasks, matching the
+        # SKILL.md cheat sheet "due-today | tasks (and logs in --type all|log)".
+        # Earlier code silently demoted `all` → `task` for any non-period mode.
+        from datetime import datetime as _dt
+        with tempfile.TemporaryDirectory() as tmp:
+            today_iso = _dt.now().date().isoformat()
+            run_cli("task", "--text", "task for today", "--due", today_iso, cwd=tmp)
+            run_cli("log", "--text", "today's reflection", cwd=tmp)
+
+            def has_task_row(stdout):
+                return any(line.startswith("task\t") for line in stdout.splitlines())
+
+            def has_log_row(stdout):
+                return any(line.startswith("log\t") for line in stdout.splitlines())
+
+            # Default --type all
+            scan_default = run_cli("scan", "--mode", "due-today", cwd=tmp)
+            self.assertTrue(has_task_row(scan_default.stdout))
+            self.assertTrue(has_log_row(scan_default.stdout))
+            self.assertIn("task for today", scan_default.stdout)
+
+            # Explicit --type all
+            scan_all = run_cli("scan", "--mode", "due-today", "--type", "all", cwd=tmp)
+            self.assertTrue(has_task_row(scan_all.stdout))
+            self.assertTrue(has_log_row(scan_all.stdout))
+
+            # --type log alone still surfaces only the log
+            scan_log = run_cli("scan", "--mode", "due-today", "--type", "log", cwd=tmp)
+            self.assertFalse(has_task_row(scan_log.stdout))
+            self.assertTrue(has_log_row(scan_log.stdout))
+
     def test_scan_overdue_lists_only_overdue_active_tasks(self):
         with tempfile.TemporaryDirectory() as tmp:
             overdue = run_cli("task", "--text", "expired thing", "--due", "2020-01-01", cwd=tmp)
