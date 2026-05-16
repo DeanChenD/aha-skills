@@ -112,7 +112,7 @@ type: log
 created_at: ...
 updated_at: ...
 entry_count: 3
-tags: [mood, work]
+tags: ["mood", "work"]
 ---
 
 # 2026-05-14

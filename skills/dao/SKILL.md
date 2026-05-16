@@ -56,7 +56,7 @@ discussion_count: 0
 priority: medium
 source: chat
 primary_category: life
-tags: [courage, work]
+tags: ["courage", "work"]
 ---
 
 # <concise title>

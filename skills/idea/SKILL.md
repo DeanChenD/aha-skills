@@ -76,7 +76,7 @@ review_count: 0
 priority: medium
 source: chat
 primary_category: product
-tags: [agent, workflow, research]
+tags: ["agent", "workflow", "research"]
 ---
 
 # <concise idea title>
