@@ -122,9 +122,10 @@ python3 skills/dao/scripts/dao_md.py discuss "$F" \
   --conversation "user: ...\nagent: ..." \
   --takeaway "Distinguish fear (points at growth) from aversion (points at self-protection)."
 
-# Resurface 3 random old daos for review (also bumps review_count)
+# Preview 3 random old daos (read-only by default)
 python3 skills/dao/scripts/dao_md.py scan --mode random --limit 3
-python3 skills/dao/scripts/dao_md.py scan --mode least-reviewed --tag courage
+# If the surfacing itself should count as a review, mark it explicitly
+python3 skills/dao/scripts/dao_md.py scan --mode least-reviewed --tag courage --mark-reviewed
 ```
 
 ### `daily/` — Tasks, Daily Logs, Check-ins & Periodic Reviews
@@ -280,11 +281,9 @@ Fallback: if the host doesn't recognize `[SILENT]`, the agent can still return a
 ## Running tests
 
 ```bash
-python3 skills/_lib/tests/test_aha_md.py
-python3 skills/idea/tests/test_idea_md.py
-python3 skills/dao/tests/test_dao_md.py
-python3 skills/daily/tests/test_daily_md.py
-python3 skills/reflect/tests/test_reflect_md.py
+python3 scripts/run_tests.py
+# or
+make test
 ```
 
 ## Conventions
@@ -300,4 +299,3 @@ python3 skills/reflect/tests/test_reflect_md.py
 - **Shell-injection surface**: every subcommand that accepts raw user text (`capture --text`, `task --text`, `log --text`, `refine --text`, `discuss --conversation`, etc.) also exposes `--<name>-stdin` / `--<name>-file` entry points. **Agents must always pipe via stdin / file when assembling bash** — embedding `$(...)` / backticks / pipe characters into `--text "..."` lets the shell execute them. The README quick-starts show the inline form for brevity; **only use it for static literals**.
 - **Sync-tool conflict files are skipped**: reflect / scan / daily review's `rglob` automatically filters out files whose basename contains `conflict` (case-insensitive) — Dropbox / Box / older iCloud write `task-X (laptop's conflicted copy 2026-05-10).md` during cross-device races. These are sync byproducts, not real records. aha-skills' own atomic rename + flock guarantees we don't produce them; if you see one, diff and merge or delete by hand.
 - **Cross-host write-conflict detection**: `flock` is local-only (NFS / iCloud / Dropbox don't propagate it). All `update / refine / checkin / discuss` paths compare mtime before saving — if the file changed between load and save (typically because another host's write synced over), the CLI refuses to overwrite and asks for `--force`. This is best-effort defense (mtime resolution is usually 1 s), not a distributed lock. When sharing a workspace across hosts, prefer not editing at the same time.
-

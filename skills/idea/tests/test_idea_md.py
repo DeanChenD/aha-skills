@@ -165,6 +165,69 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("follow-up: `rm -rf /` not sanitized.", text)
 
+    def test_enrich_replaces_body_sections_and_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "Build an idea inbox", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            tmp_path = Path(tmp)
+            summary = tmp_path / "summary.txt"
+            classification = tmp_path / "classification.txt"
+            research_task = tmp_path / "research_task.txt"
+            plan = tmp_path / "plan.txt"
+            questions = tmp_path / "questions.txt"
+            summary.write_text("A compact inbox for turning sparks into plans.\n## Fake", encoding="utf-8")
+            classification.write_text(
+                "- Primary category: product\n- Tags: idea, workflow\n- Confidence: medium\n",
+                encoding="utf-8",
+            )
+            research_task.write_text("Clarify the smallest useful capture loop.", encoding="utf-8")
+            plan.write_text("- [ ] Draft UX\n- [ ] Validate with one user\n", encoding="utf-8")
+            questions.write_text("1. Who uses it first?\n2. What counts as done?\n", encoding="utf-8")
+
+            run_cli(
+                "enrich",
+                str(path),
+                "--summary-file", str(summary),
+                "--classification-file", str(classification),
+                "--research-task-file", str(research_task),
+                "--plan-file", str(plan),
+                "--questions-file", str(questions),
+                "--status", "researching",
+                "--category", "product",
+                "--tags", "idea,workflow",
+                "--next-review-at", "2030-01-02",
+                cwd=tmp,
+            )
+
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("status: researching", text)
+            self.assertIn("primary_category: product", text)
+            self.assertIn('tags: ["idea", "workflow"]', text)
+            self.assertIn("next_review_at: 2030-01-02T00:00:00", text)
+            self.assertIn("A compact inbox for turning sparks into plans.", text)
+            self.assertIn("- Primary category: product", text)
+            self.assertIn("Clarify the smallest useful capture loop.", text)
+            self.assertIn("- [ ] Draft UX", text)
+            self.assertIn("1. Who uses it first?", text)
+            h2s = [ln for ln in text.splitlines() if ln.startswith("## ")]
+            self.assertNotIn("## Fake", h2s)
+
+    def test_enrich_rejects_noop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "No-op idea", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "enrich", str(path)],
+                capture_output=True,
+                text=True,
+                cwd=tmp,
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("Nothing to enrich", result.stderr)
+
     def test_scan_lists_due_active_ideas(self):
         with tempfile.TemporaryDirectory() as tmp:
             captured = run_cli(

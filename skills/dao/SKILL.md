@@ -128,7 +128,7 @@ Always produce a takeaway. A discussion without a takeaway is a context leak.
 
 ## Scan / Review Workflow
 
-`scan` is for **resurfacing**, not for chasing TODOs. Default mode is `random`, default limit is 3. Each hit increments `review_count` and stamps `last_reviewed_at` — so over time `--mode least-reviewed` will pull the most-neglected entries.
+`scan` is for **resurfacing**, not for chasing TODOs. Default mode is `random`, default limit is 3, and the command is read-only by default: it prints the current `review_count` without changing it. Use `--mark-reviewed` only when the surfacing itself should count as a review. Real engagement through `refine`, `discuss`, or `update --note/--context` stamps `last_reviewed_at` and increments `review_count`, so over time `--mode least-reviewed` will pull the most-neglected entries.
 
 Suggested triggers:
 - The user says "翻翻以前的感悟" / "回顾一下" / "随便给我看几条以前的".

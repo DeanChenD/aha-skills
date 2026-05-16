@@ -26,6 +26,7 @@ from aha_md import (  # noqa: E402
     parse_dt,
     parse_frontmatter,
     render_frontmatter,
+    replace_section,
     resolve_text_input,
     sanitize_single_line,
     save_record,
@@ -44,6 +45,14 @@ ACTIVE_STATUSES = {"inbox", "researching", "planning"}
 PAUSED_STATUS = "paused"
 STATUSES = {"inbox", "researching", "planning", "paused", "completed", "killed"}
 IDEA_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/idea/idea-md"
+
+SUMMARY_HEADING = "Summary"
+CLASSIFICATION_HEADING = "Classification"
+RESEARCH_TASK_HEADING = "Research Task"
+PLAN_HEADING = "Plan"
+QUESTIONS_HEADING = "Questions For User"
+DECISION_LOG_HEADING = "Decision Log"
+NOTES_HEADING = "Notes"
 
 
 def default_idea_dir():
@@ -94,21 +103,21 @@ def capture(args):
 
 {raw_text_safe}
 
-## Summary
+## {SUMMARY_HEADING}
 
 TBD
 
-## Classification
+## {CLASSIFICATION_HEADING}
 
 - Primary category:
 - Tags:
 - Confidence:
 
-## Research Task
+## {RESEARCH_TASK_HEADING}
 
 TBD
 
-## Plan
+## {PLAN_HEADING}
 
 - [ ] Clarify:
 - [ ] Research:
@@ -116,20 +125,74 @@ TBD
 - [ ] Draft:
 - [ ] Decide:
 
-## Questions For User
+## {QUESTIONS_HEADING}
 
 1.
 2.
 3.
 
-## Decision Log
+## {DECISION_LOG_HEADING}
 
 - {now.date().isoformat()}: Captured.
 
-## Notes
+## {NOTES_HEADING}
 """
     atomic_write(path, body)
     print(path)
+
+
+def enrich(args):
+    path = Path(args.file).expanduser().resolve()
+    assert_record_path(path, "idea", subdir="idea-md")
+    with locked_record(path):
+        _do_enrich(path, args)
+    print(path)
+
+
+def _do_enrich(path, args):
+    lines, _meta, body = load_record(path)
+    pre_mtime = path.stat().st_mtime
+    now = local_now()
+
+    section_inputs = [
+        (SUMMARY_HEADING, resolve_text_input(args, "summary")),
+        (CLASSIFICATION_HEADING, resolve_text_input(args, "classification")),
+        (RESEARCH_TASK_HEADING, resolve_text_input(args, "research-task")),
+        (PLAN_HEADING, resolve_text_input(args, "plan")),
+        (QUESTIONS_HEADING, resolve_text_input(args, "questions")),
+    ]
+    metadata_changed = any([
+        args.status,
+        args.category is not None,
+        args.tags is not None,
+        args.priority,
+        args.next_review_at is not None,
+    ])
+    if not metadata_changed and all(value is None for _heading, value in section_inputs):
+        raise SystemExit(
+            "Nothing to enrich. Provide at least one section field "
+            "(--summary/--classification/--research-task/--plan/--questions) "
+            "or metadata field."
+        )
+
+    for heading, value in section_inputs:
+        if value is not None:
+            body = replace_section(body, heading, value.strip())
+
+    if args.status:
+        set_meta(lines, "status", args.status)
+    if args.category is not None:
+        set_meta(lines, "primary_category", args.category)
+    if args.tags is not None:
+        set_meta(lines, "tags", format_tags(args.tags))
+    if args.priority:
+        set_meta(lines, "priority", args.priority)
+    if args.next_review_at is not None:
+        set_meta(lines, "next_review_at", normalize_datetime(args.next_review_at))
+    set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
+
+    verify_unchanged_since(path, pre_mtime, force=args.force)
+    save_record(path, lines, body)
 
 
 def update(args):
@@ -166,10 +229,10 @@ def _do_update(path, args):
 
     decision_text = resolve_text_input(args, "decision")
     if decision_text:
-        body = append_to_section(body, "Decision Log", f"- {now.date().isoformat()}: {decision_text}")
+        body = append_to_section(body, DECISION_LOG_HEADING, f"- {now.date().isoformat()}: {decision_text}")
     note_text = resolve_text_input(args, "note")
     if note_text:
-        body = append_to_section(body, "Notes", f"- {now.date().isoformat()}: {note_text}")
+        body = append_to_section(body, NOTES_HEADING, f"- {now.date().isoformat()}: {note_text}")
 
     verify_unchanged_since(path, pre_mtime, force=args.force)
     save_record(path, lines, body)
@@ -266,6 +329,42 @@ def main():
              " override that forces read-only even if --mark-prompted is set.)",
     )
     p_scan.set_defaults(func=scan)
+
+    p_enrich = sub.add_parser(
+        "enrich",
+        help="Replace idea body sections (summary/classification/research task/plan/questions).",
+    )
+    p_enrich.add_argument("file", help="Markdown idea file to enrich.")
+    add_text_input_args(
+        p_enrich, "summary", required=False,
+        help_text="Replace ## Summary.",
+    )
+    add_text_input_args(
+        p_enrich, "classification", required=False,
+        help_text="Replace ## Classification.",
+    )
+    add_text_input_args(
+        p_enrich, "research-task", required=False,
+        help_text="Replace ## Research Task.",
+    )
+    add_text_input_args(
+        p_enrich, "plan", required=False,
+        help_text="Replace ## Plan.",
+    )
+    add_text_input_args(
+        p_enrich, "questions", required=False,
+        help_text="Replace ## Questions For User.",
+    )
+    p_enrich.add_argument("--status", choices=sorted(STATUSES))
+    p_enrich.add_argument("--category")
+    p_enrich.add_argument("--tags", help="Comma-separated tags.")
+    p_enrich.add_argument("--priority", choices=["low", "medium", "high"])
+    p_enrich.add_argument("--next-review-at", help="ISO datetime or date for the next review. Empty string clears it.")
+    p_enrich.add_argument(
+        "--force", action="store_true",
+        help="Skip the cross-host mtime conflict check.",
+    )
+    p_enrich.set_defaults(func=enrich)
 
     p_update = sub.add_parser("update", help="Update idea frontmatter and append logs.")
     p_update.add_argument("file", help="Markdown idea file to update.")

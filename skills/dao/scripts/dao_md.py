@@ -402,7 +402,7 @@ def main():
     p_discuss.set_defaults(func=discuss)
 
     p_scan = sub.add_parser(
-        "scan", help="Surface old dao records for review; updates review_count."
+        "scan", help="Surface old dao records for review; read-only by default."
     )
     p_scan.add_argument("--mode", choices=list(SCAN_MODES), default="random")
     p_scan.add_argument("--tag", help="Filter by tag.")
