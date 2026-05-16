@@ -25,8 +25,8 @@ from aha_md import (  # noqa: E402
     doctor_workspace,
     ensure_dir,
     ensure_workspace_manifest,
-    extract_difficulty_entries,
     iter_record_paths,
+    iter_task_difficulties_in_range,
     local_now,
     parse_dt,
     parse_frontmatter_lines,
@@ -91,6 +91,29 @@ def _parse_frontmatter_with_body(path):
     if not schema_version_compatible(meta, path=path):
         return None, None
     return meta, body
+
+
+def _iter_daily_task_records():
+    """Yield ``(path, meta, body)`` for every readable daily task record.
+
+    Skips records whose ``type`` frontmatter is set to something other
+    than ``task`` (e.g. an orphaned check-in file in the wrong dir),
+    and skips parse / read failures (already stderr-warned by
+    ``_parse_frontmatter_with_body``). Used by ``difficulties`` and
+    ``_collect_difficulties`` so they share both the dir-resolve and
+    the type-filter parts; the date-filter + tuple-shape part lives in
+    ``aha_md.iter_task_difficulties_in_range``.
+    """
+    root = _daily_tasks_dir()
+    if not root.is_dir():
+        return
+    for path in iter_record_paths(root):
+        meta, body = _parse_frontmatter_with_body(path)
+        if meta is None or not body:
+            continue
+        if meta.get("type") and meta.get("type") != "task":
+            continue
+        yield path, meta, body
 
 
 def parse_date_str(value):
@@ -314,29 +337,10 @@ def tags(args):
 
 def difficulties(args):
     start, end = _resolve_period(args)
-    root = _daily_tasks_dir()
-    if not root.is_dir():
-        return
-    for path in iter_record_paths(root):
-        meta, body = _parse_frontmatter_with_body(path)
-        if meta is None:
-            continue
-        if meta.get("type") and meta.get("type") != "task":
-            continue
-        if not body:
-            continue
-        title = title_from_body(body)
-        for date_str, text in extract_difficulty_entries(body):
-            d = parse_date_str(date_str)
-            if not in_range(d, start, end):
-                continue
-            print("\t".join([
-                d.isoformat(),
-                meta.get("id", ""),
-                str(path),
-                title,
-                text,
-            ]))
+    for d, task_id, path, title, text in iter_task_difficulties_in_range(
+        _iter_daily_task_records(), start, end
+    ):
+        print("\t".join([d.isoformat(), task_id, str(path), title, text]))
 
 
 def _render_snapshot(records, start, end):
@@ -421,23 +425,7 @@ def _render_snapshot(records, start, end):
 
 
 def _collect_difficulties(start, end):
-    out = []
-    root = _daily_tasks_dir()
-    if not root.is_dir():
-        return out
-    for path in iter_record_paths(root):
-        meta, body = _parse_frontmatter_with_body(path)
-        if meta is None or not body:
-            continue
-        if meta.get("type") and meta.get("type") != "task":
-            continue
-        title = title_from_body(body)
-        for date_str, text in extract_difficulty_entries(body):
-            d = parse_date_str(date_str)
-            if not in_range(d, start, end):
-                continue
-            out.append((d, meta.get("id", ""), path, title, text))
-    return out
+    return list(iter_task_difficulties_in_range(_iter_daily_task_records(), start, end))
 
 
 def _render_tag_summary(records):

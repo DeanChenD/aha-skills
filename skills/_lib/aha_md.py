@@ -920,6 +920,30 @@ def extract_difficulty_entries(body):
         yield match.group(1), match.group(2).strip()
 
 
+def iter_task_difficulties_in_range(records, start, end):
+    """Walk an iterable of ``(path, meta, body)`` task records and yield
+    ``(d, task_id, path, title, text)`` for each difficulty entry whose
+    parsed date falls within ``[start, end]`` inclusive.
+
+    Used by daily review's local snapshot, reflect.difficulties' TSV
+    output, and reflect.save's snapshot block — all three previously
+    duplicated the title-resolve + date-filter inner loop. ``records``
+    is whatever the caller has already pre-filtered (e.g. via
+    ``_load_task_records()`` or via manual frontmatter parsing); this
+    helper assumes each ``(meta, body)`` is a task record and only
+    deals with the date-filter + tuple-shape part.
+    """
+    for path, meta, body in records:
+        title = title_from_body(body)
+        for date_str, text in extract_difficulty_entries(body):
+            try:
+                d = date.fromisoformat(date_str)
+            except ValueError:
+                continue
+            if start <= d <= end:
+                yield d, meta.get("id", ""), path, title, text
+
+
 _ACTIVE_TASK_STATUSES = ("pending", "in_progress", "blocked")
 
 

@@ -20,10 +20,10 @@ from aha_md import (  # noqa: E402
     ensure_dir,
     ensure_workspace_manifest,
     escape_pseudo_h2,
-    extract_difficulty_entries,
     format_tags,
     int_meta,
     iter_record_paths,
+    iter_task_difficulties_in_range,
     load_record,
     local_now,
     locked_record,
@@ -635,17 +635,7 @@ def scan(args):
 
 
 def _collect_difficulties_in_range(start, end):
-    out = []
-    for path, meta, body in _load_task_records():
-        title = title_from_body(body)
-        for date_str, text in extract_difficulty_entries(body):
-            try:
-                d = date.fromisoformat(date_str)
-            except ValueError:
-                continue
-            if start <= d <= end:
-                out.append((d, meta.get("id", ""), path, title, text))
-    return out
+    return list(iter_task_difficulties_in_range(_load_task_records(), start, end))
 
 
 def _render_review_snapshot(start, end):
