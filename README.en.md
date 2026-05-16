@@ -136,8 +136,8 @@ Manage important todos with explicit due dates and postponements, log stage-by-s
   - Tasks: `./aha-workspace/daily/tasks/task-<id>.md` (status workflow + difficulty / postponement / check-in logs).
   - Daily logs: `./aha-workspace/daily/logs/log-YYYY-MM-DD.md` (one file per day, multiple `## HH:MM — title` entries appended within).
   - Check-in transcripts: `./aha-workspace/daily/check-ins/<task-id>-checkin-NNN.md`.
-  - Reviews (agent-written via `Write`): `./aha-workspace/daily/reviews/review-<period-id>.md`.
-- **Actions**: `task` / `update` / `checkin` / `log` / `scan` (no forced status workflow).
+  - Reviews (written by `daily_md.py review`, write-once, mirrors `reflect.save`): `./aha-workspace/daily/reviews/review-<period-id>.md`.
+- **Actions**: `task` / `update` / `checkin` / `log` / `scan` / `review` (no forced status workflow).
 - **CLI**: `skills/daily/scripts/daily_md.py`.
 
 See [`skills/daily/SKILL.md`](skills/daily/SKILL.md) for the overdue-reminder conversation flow, check-in pattern, and review skeleton.
@@ -201,6 +201,8 @@ python3 skills/reflect/scripts/reflect_md.py save --period week
 python3 skills/reflect/scripts/reflect_md.py save --period week --date 2026-05-07
 ```
 
+> **ISO week year-boundary note**: `--period week` uses ISO 8601 numbering, so 2025-12-31 belongs to `2026-W01` (the week containing 2026-01-04), and 2023-01-01 belongs to `2022-W52`. This is by spec, not a bug; archived filenames / paths use the ISO year.
+
 ## Repository layout
 
 ```
@@ -209,6 +211,13 @@ aha-skills/
 ├── README.en.md            # English README (this file)
 ├── .gitignore
 └── skills/
+    ├── _lib/
+    │   ├── aha_md.py            # Primitives shared by all 4 skills:
+    │   │                        # frontmatter / sanitize /
+    │   │                        # section finder (line-based + fence-aware) /
+    │   │                        # atomic_write / locked_record / workspace_anchor /
+    │   │                        # schema_version / period_range/id, etc.
+    │   └── tests/test_aha_md.py
     ├── idea/
     │   ├── SKILL.md            # Skill definition (frontmatter + workflow)
     │   ├── references/         # Reference material the skill may load
@@ -225,9 +234,9 @@ aha-skills/
     │       └── test_dao_md.py
     ├── daily/
     │   ├── SKILL.md
-    │   ├── references/
+    │   ├── references/          # 5 sub-flows: task-capture / overdue-flow / checkin-flow / log-flow / review-flow
     │   ├── scripts/
-    │   │   └── daily_md.py      # CLI: task / update / checkin / log / scan
+    │   │   └── daily_md.py      # CLI: task / update / checkin / log / scan / review
     │   └── tests/
     │       └── test_daily_md.py
     └── reflect/
@@ -241,12 +250,37 @@ aha-skills/
 
 ## Installing a skill into a host
 
-- **Claude Code**: drop the skill folder into `~/.claude/skills/` (or symlink it), then invoke via the `Skill` tool / slash command.
-- **Hermes**: install under `~/.hermes/skills/<skill-name>` or add the parent directory to `skills.external_dirs`. Set `workdir` to a stable parent so `aha-workspace/` is reused across runs.
+> **Important**: All four skill scripts import shared primitives from a sibling `_lib/aha_md.py`
+> (the first line of `scripts/*_md.py` does `sys.path.insert(0, .../skills/_lib)`).
+> **You must copy / symlink the entire `skills/` parent directory into the host**, or otherwise
+> keep `_lib/` as a sibling of the installed skill. **Installing a single skill without `_lib/`
+> next to it fails on the very first import (`ImportError`).**
+
+- **Claude Code**: symlink the whole `skills/` directory under `~/.claude/skills/`
+  (e.g. `ln -s "$(pwd)/skills" ~/.claude/skills/aha`), preserving the sibling
+  relationship between `_lib/` and the four skill folders. You may also symlink
+  `idea/ dao/ daily/ reflect/` individually, but you **must** also symlink `_lib/` alongside.
+- **Hermes**: install under `~/.hermes/skills/<parent>` or add the parent directory to
+  `skills.external_dirs`; same `_lib/` sibling rule. Set `workdir` to a stable parent
+  directory so `aha-workspace/` is reused across runs.
+
+## Host capability matrix — the `[SILENT]` protocol
+
+The cron-prompt examples (notably the tail of `idea/SKILL.md`, `dao/SKILL.md:150`, and the tail of `reflect/SKILL.md`) instruct the agent to "if nothing needs user attention, return `[SILENT]`". This is a **host-side** convention: when the host sees the literal `[SILENT]` reply, it should treat that run as a no-op and not send a notification / email / IM.
+
+| Host | `[SILENT]` handling | Recommendation |
+|---|---|---|
+| **Hermes** | Supported. Returning `[SILENT]` finishes the cron run without a user-facing notification | Use the SKILL.md cron prompt as written |
+| **Claude Code (interactive)** | Not applicable — runs once, output goes straight to the user | Ignore the cron-prompt section; the skill set still works for manual invocation |
+| **Hand-rolled cron + shell + curl** | Not recognized host-side; the literal string lands in stdout | In the wrapper script `grep -v '^\[SILENT\]$'` or short-circuit notification on match |
+| **Other** | Implementation-dependent; if the host turns the agent's output into the notification body, `[SILENT]` becomes noise | Wrap an "empty-output ⇒ skip notification" middleware |
+
+Fallback: if the host doesn't recognize `[SILENT]`, the agent can still return an empty string or a single line `(nothing to surface)` per prompt, and let the host filter on the keyword.
 
 ## Running tests
 
 ```bash
+python3 skills/_lib/tests/test_aha_md.py
 python3 skills/idea/tests/test_idea_md.py
 python3 skills/dao/tests/test_dao_md.py
 python3 skills/daily/tests/test_daily_md.py
@@ -255,8 +289,15 @@ python3 skills/reflect/tests/test_reflect_md.py
 
 ## Conventions
 
-- One Markdown file per record; raw user content is preserved verbatim.
-- All paths resolve relative to the current working directory via `aha-workspace/`.
-- Skills should never write outside `aha-workspace/<skill>/` at runtime.
-- New skills follow the same shape: `SKILL.md`, optional `scripts/`, `tests/`, `references/`.
+- One Markdown file per record; user-supplied content is **render-equivalent preserved** (`## Raw` is never overwritten by tooling; two minimal escapes are applied at write time to protect structural boundaries — see the next two bullets — but the CommonMark rendered output equals the original).
+- The workspace is anchored via `aha-workspace/.manifest.json`: the CLI walks up from cwd looking for a manifest, and creates one in cwd if none is found. The manifest records `schema_version` / `timezone` / `host_id`; a TZ mismatch produces a stderr warning.
+- Every write path goes through atomic rename (`atomic_write`) + flock (`locked_record`), keeping cron and interactive-agent runs concurrency-safe and avoiding sync-conflict copies on iCloud / Dropbox.
+- `update` / `refine` / `checkin` / `discuss` refuse to write outside `aha-workspace/<skill>/`.
+- `## Foo` written by the user is escaped to `\## Foo` at write time (CommonMark renders identically); section detection is line-based + fence-aware so it can't be tricked by pseudo-headings inside raw text.
+- Single-line free-text fields in frontmatter and section openers (`--note` / `--decision` / `--difficulty` etc.) have `\n` translated to a `↵` mark, preventing row-injection like fake `status: dropped` lines.
+- **Frontmatter `tags` is a JSON array**: write `tags: ["agent", "workflow"]` (with the double quotes). `parse_tags_field` calls `json.loads`, so YAML flow style `[agent, workflow]` parses as an empty list — meaning reflect / scan won't see those tags. Keep the quotes when hand-editing.
+- New skills follow the same shape: `SKILL.md`, optional `scripts/`, `tests/`, `references/`; reuse all primitives from `skills/_lib/aha_md.py`.
+- **Shell-injection surface**: every subcommand that accepts raw user text (`capture --text`, `task --text`, `log --text`, `refine --text`, `discuss --conversation`, etc.) also exposes `--<name>-stdin` / `--<name>-file` entry points. **Agents must always pipe via stdin / file when assembling bash** — embedding `$(...)` / backticks / pipe characters into `--text "..."` lets the shell execute them. The README quick-starts show the inline form for brevity; **only use it for static literals**.
+- **Sync-tool conflict files are skipped**: reflect / scan / daily review's `rglob` automatically filters out files whose basename contains `conflict` (case-insensitive) — Dropbox / Box / older iCloud write `task-X (laptop's conflicted copy 2026-05-10).md` during cross-device races. These are sync byproducts, not real records. aha-skills' own atomic rename + flock guarantees we don't produce them; if you see one, diff and merge or delete by hand.
+- **Cross-host write-conflict detection**: `flock` is local-only (NFS / iCloud / Dropbox don't propagate it). All `update / refine / checkin / discuss` paths compare mtime before saving — if the file changed between load and save (typically because another host's write synced over), the CLI refuses to overwrite and asks for `--force`. This is best-effort defense (mtime resolution is usually 1 s), not a distributed lock. When sharing a workspace across hosts, prefer not editing at the same time.
 
