@@ -44,6 +44,7 @@ from aha_md import (  # noqa: E402
     set_meta,
     slugify,
     split_frontmatter,
+    title_from,
     title_from_body,
     unique_path,
     workspace_dir,
@@ -70,13 +71,6 @@ SCAN_MODES = (
 )
 PERIODS = ("day", "week", "month")
 SCAN_TYPES = ("task", "log", "all")
-
-
-def title_from_text(text):
-    first = " ".join(text.strip().split())
-    if not first:
-        return "Untitled Task"
-    return first[:80]
 
 
 def default_tasks_dir():
@@ -262,7 +256,7 @@ def task(args):
     stamp = now.strftime("%Y%m%d-%H%M%S")
     slug = slugify(text, fallback="task")
     task_id, path = unique_path(root, f"task-{stamp}-{slug}")
-    title = args.title or title_from_text(text)
+    title = args.title or title_from(text, fallback="Untitled Task")
     due_iso = parse_due(args.due) if args.due else ""
     body = render_task_skeleton(
         task_id,

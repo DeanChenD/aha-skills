@@ -37,6 +37,7 @@ from aha_md import (  # noqa: E402
     set_meta,
     slugify,
     split_frontmatter,
+    title_from,
     title_from_body,
     unique_path,
     verify_unchanged_since,
@@ -63,13 +64,6 @@ def default_dao_dir():
 
 def default_sessions_dir():
     return workspace_dir("dao", "sessions")
-
-
-def title_from_text(text):
-    first = " ".join(text.strip().split())
-    if not first:
-        return "Untitled Dao"
-    return first[:80]
 
 
 def render_dao_skeleton(dao_id, title, raw_text, now, source, priority, category, tags):
@@ -121,7 +115,7 @@ def capture(args):
     stamp = now.strftime("%Y%m%d-%H%M%S")
     slug = slugify(text, fallback="dao")
     dao_id, path = unique_path(root, f"dao-{stamp}-{slug}")
-    title = args.title or title_from_text(text)
+    title = args.title or title_from(text, fallback="Untitled Dao")
     body = render_dao_skeleton(
         dao_id,
         title,

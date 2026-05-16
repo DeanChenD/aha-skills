@@ -33,6 +33,7 @@ from aha_md import (  # noqa: E402
     set_meta,
     slugify,
     split_frontmatter,
+    title_from,
     unique_path,
     verify_unchanged_since,
     workspace_dir,
@@ -58,13 +59,6 @@ def normalize_datetime(value):
     return parsed.isoformat(timespec="seconds")
 
 
-def title_from_text(text):
-    first = " ".join(text.strip().split())
-    if not first:
-        return "Untitled Idea"
-    return first[:80]
-
-
 def capture(args):
     root = default_idea_dir()
     ensure_dir(root)
@@ -74,7 +68,7 @@ def capture(args):
     stamp = now.strftime("%Y%m%d-%H%M%S")
     slug = slugify(text, fallback="idea")
     idea_id, path = unique_path(root, f"idea-{stamp}-{slug}")
-    title = args.title or title_from_text(text)
+    title = args.title or title_from(text, fallback="Untitled Idea")
     timestamp = now.isoformat(timespec="seconds")
     next_review_at = normalize_datetime(args.next_review_at)
     raw_text_safe = escape_pseudo_h2(text)
