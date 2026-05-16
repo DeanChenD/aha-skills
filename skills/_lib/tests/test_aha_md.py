@@ -456,6 +456,44 @@ class SchemaVersionCompatibleTest(unittest.TestCase):
         self.assertIn("unparseable", buf.getvalue())
 
 
+class SplitFrontmatterRobustnessTest(unittest.TestCase):
+    """P1#14: a Windows editor or a Windows-touched sync round trip can
+    inject a UTF-8 BOM at the file start and rewrite line endings to
+    CRLF. The pre-fix parser only accepted exact `---\\n`, so those
+    files silently looked frontmatter-less to every reader."""
+
+    def test_split_strips_bom(self):
+        text = "﻿---\nid: x\n---\nbody\n"
+        lines, body = aha_md.split_frontmatter(text)
+        self.assertEqual(["id: x"], lines)
+        self.assertEqual("body\n", body)
+
+    def test_split_normalises_crlf(self):
+        text = "---\r\nid: x\r\nstatus: a\r\n---\r\nbody line\r\n"
+        lines, body = aha_md.split_frontmatter(text)
+        self.assertEqual(["id: x", "status: a"], lines)
+        self.assertEqual("body line\n", body)
+
+    def test_split_handles_bom_and_crlf_together(self):
+        text = "﻿---\r\nid: x\r\n---\r\nbody\r\n"
+        lines, body = aha_md.split_frontmatter(text)
+        self.assertEqual(["id: x"], lines)
+        self.assertEqual("body\n", body)
+
+    def test_load_record_accepts_crlf_file(self):
+        """End-to-end: a CRLF+BOM file written to disk parses cleanly
+        through load_record (no SystemExit on missing frontmatter)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "win.md"
+            path.write_text(
+                "﻿---\r\nschema_version: 1\r\nid: x\r\nstatus: active\r\n---\r\nbody\r\n",
+                encoding="utf-8",
+            )
+            lines, meta, body = aha_md.load_record(path)
+            self.assertEqual("active", meta["status"])
+            self.assertEqual("body\n", body)
+
+
 class ConflictCopyFilterTest(unittest.TestCase):
     """P1#10: sync tools (Dropbox, Box, older iCloud) write "conflicted
     copy" filenames when two devices race. Those files are sync

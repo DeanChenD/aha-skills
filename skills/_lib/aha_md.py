@@ -103,7 +103,28 @@ def parse_dt(value):
     return parsed
 
 
+_BOM = "﻿"
+
+
 def split_frontmatter(text):
+    """Split a record file into (frontmatter_lines, body).
+
+    Tolerant to two real-world quirks that previously caused the parser
+    to return ``([], text)`` and silently treat a perfectly good record
+    as missing frontmatter:
+
+    - **UTF-8 BOM** prepended by Windows / Notepad editors.
+    - **CRLF** line endings injected by Windows editors or by sync tools
+      that touch the file on a Windows host.
+
+    Both are normalized in place: the BOM stripped, CRLF rewritten to
+    LF. The returned body is in normalized form so all downstream
+    parsers see canonical bytes.
+    """
+    if text.startswith(_BOM):
+        text = text[len(_BOM):]
+    if "\r\n" in text or text.endswith("\r"):
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
     if not text.startswith("---\n"):
         return [], text
     end = text.find("\n---\n", 4)
