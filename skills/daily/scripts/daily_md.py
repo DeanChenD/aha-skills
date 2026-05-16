@@ -520,8 +520,16 @@ def _task_filter_for_mode(meta, args, now):
     if args.mode == "overdue":
         return due is not None and due < now and status not in TERMINAL_STATUSES
     if args.mode == "due-today":
+        # P2#14: by default treat done/dropped as out of "due today" — a
+        # task whose due_at lands today but is already finished should
+        # not show up in the day's surface. Users wanting historical
+        # done-today review go through --status done explicitly.
+        if due is None:
+            return False
+        if status in TERMINAL_STATUSES and not args.status:
+            return False
         anchor = parse_date_arg(args.date) if args.date else now.date()
-        return due is not None and due.date() == anchor
+        return due.date() == anchor
     if args.mode == "due-soon":
         if due is None or status in TERMINAL_STATUSES:
             return False

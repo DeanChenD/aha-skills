@@ -304,6 +304,43 @@ class DailyMarkdownCliTest(unittest.TestCase):
             text = files[0].read_text(encoding="utf-8")
             self.assertIn("    def foo():\n        return 1", text)
 
+    def test_scan_due_today_excludes_done_and_dropped_by_default(self):
+        # P2#14: a task that's `done` or `dropped` but happens to have
+        # due_at == today should NOT show up in the daily surface — it
+        # would fight the user's attention with already-resolved work.
+        from datetime import datetime as _dt
+        with tempfile.TemporaryDirectory() as tmp:
+            today_iso = _dt.now().date().isoformat()
+            run_cli("task", "--text", "still open today", "--due", today_iso, cwd=tmp)
+            done_path = run_cli(
+                "task", "--text", "finished today", "--due", today_iso, cwd=tmp
+            ).stdout.strip()
+            run_cli("update", done_path, "--status", "done", cwd=tmp)
+            dropped_path = run_cli(
+                "task", "--text", "abandoned today", "--due", today_iso, cwd=tmp
+            ).stdout.strip()
+            run_cli("update", dropped_path, "--status", "dropped", cwd=tmp)
+
+            scan = run_cli("scan", "--mode", "due-today", cwd=tmp)
+            self.assertIn("still open today", scan.stdout)
+            self.assertNotIn("finished today", scan.stdout)
+            self.assertNotIn("abandoned today", scan.stdout)
+
+    def test_scan_due_today_with_status_filter_can_surface_done(self):
+        # P2#14 escape hatch: --status done explicitly opts back into
+        # showing terminal tasks for the day, e.g. "what did I close
+        # today" reviews.
+        from datetime import datetime as _dt
+        with tempfile.TemporaryDirectory() as tmp:
+            today_iso = _dt.now().date().isoformat()
+            done_path = run_cli(
+                "task", "--text", "finished today", "--due", today_iso, cwd=tmp
+            ).stdout.strip()
+            run_cli("update", done_path, "--status", "done", cwd=tmp)
+
+            scan = run_cli("scan", "--mode", "due-today", "--status", "done", cwd=tmp)
+            self.assertIn("finished today", scan.stdout)
+
     def test_scan_overdue_lists_only_overdue_active_tasks(self):
         with tempfile.TemporaryDirectory() as tmp:
             overdue = run_cli("task", "--text", "expired thing", "--due", "2020-01-01", cwd=tmp)
