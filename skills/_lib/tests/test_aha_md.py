@@ -1004,15 +1004,40 @@ class WorkspaceManifestTest(unittest.TestCase):
             self.assertEqual(1, data["schema_version"])
             self.assertIn("timezone", data)
             self.assertIn("host_id", data)
+            self.assertIn("last_touched_by", data)
+            self.assertIn("last_touched_at", data)
+            # On first call the touch fields should mirror creator host.
+            self.assertEqual(data["host_id"], data["last_touched_by"])
+            self.assertEqual(data["created_at"], data["last_touched_at"])
 
-    def test_ensure_manifest_idempotent(self):
+    def test_ensure_manifest_preserves_shape_and_refreshes_touch(self):
+        # P2#12: subsequent calls must not break the schema or reshuffle
+        # creator fields, but must refresh last_touched_by / last_touched_at
+        # so a multi-host workspace can see who wrote most recently.
+        import json as _json
         with tempfile.TemporaryDirectory() as tmp:
             os.chdir(tmp)
             aha_md.ensure_workspace_manifest()
-            first_mtime = (Path(tmp) / "aha-workspace" / ".manifest.json").stat().st_mtime
-            aha_md.ensure_workspace_manifest()  # second call must not rewrite
-            second_mtime = (Path(tmp) / "aha-workspace" / ".manifest.json").stat().st_mtime
-            self.assertEqual(first_mtime, second_mtime)
+            mp = Path(tmp) / "aha-workspace" / ".manifest.json"
+            first = _json.loads(mp.read_text(encoding="utf-8"))
+            # Simulate an older "last touch" by rewriting the file with a
+            # stale last_touched_at and a different host as the creator.
+            stale = dict(first)
+            stale["host_id"] = "creator-host"
+            stale["last_touched_by"] = "previous-host"
+            stale["last_touched_at"] = "2020-01-01T00:00:00"
+            mp.write_text(_json.dumps(stale) + "\n", encoding="utf-8")
+
+            aha_md.ensure_workspace_manifest()
+            second = _json.loads(mp.read_text(encoding="utf-8"))
+            # Creator fields preserved.
+            self.assertEqual("creator-host", second["host_id"])
+            self.assertEqual(first["created_at"], second["created_at"])
+            # Touch fields updated to the current host / time.
+            self.assertNotEqual("previous-host", second["last_touched_by"])
+            self.assertNotEqual(
+                "2020-01-01T00:00:00", second["last_touched_at"]
+            )
 
     def test_check_consistency_warns_on_tz_mismatch(self):
         import io as _io

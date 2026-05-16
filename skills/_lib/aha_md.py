@@ -714,27 +714,39 @@ def _read_manifest():
 
 
 def ensure_workspace_manifest():
-    """Create the manifest at <workspace>/.manifest.json if missing.
+    """Stamp the manifest at <workspace>/.manifest.json.
 
-    Called from the first write of each session — capture creates the
-    workspace data, this stamps a manifest so future invocations have a
-    canonical anchor for cross-machine / TZ checks. Idempotent.
+    On first call: create with schema_version / timezone / host_id /
+    created_at + last_touched_by + last_touched_at.
+
+    On subsequent calls: refresh last_touched_by + last_touched_at so a
+    multi-host workspace's manifest reflects the most recent writer
+    rather than only the host that originally created the workspace.
+    Other fields are preserved; if the manifest is corrupt it gets
+    rewritten from scratch. Idempotent w.r.t. data shape.
     """
     import socket
     p = _manifest_path()
-    if p.exists():
-        return
     p.parent.mkdir(parents=True, exist_ok=True)
     try:
         host = socket.gethostname() or "unknown"
     except OSError:
         host = "unknown"
-    payload = {
-        "schema_version": CURRENT_SCHEMA_VERSION,
-        "timezone": _current_tz_str(),
-        "host_id": host,
-        "created_at": local_now().isoformat(timespec="seconds"),
-    }
+    now_iso = local_now().isoformat(timespec="seconds")
+    existing = _read_manifest()
+    if existing is None:
+        payload = {
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "timezone": _current_tz_str(),
+            "host_id": host,
+            "created_at": now_iso,
+            "last_touched_by": host,
+            "last_touched_at": now_iso,
+        }
+    else:
+        payload = dict(existing)
+        payload["last_touched_by"] = host
+        payload["last_touched_at"] = now_iso
     atomic_write(p, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
