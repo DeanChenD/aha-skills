@@ -1060,6 +1060,91 @@ class WorkspaceManifestTest(unittest.TestCase):
                 aha_md.check_manifest_consistency()
             self.assertIn("timezone mismatch", buf.getvalue())
 
+    def test_consistency_prefers_iana_name_over_offset(self):
+        # P2#15: when both manifest and host expose an IANA name, an
+        # offset drift (e.g. DST transition: -0500 ↔ -0400 for
+        # America/New_York) should NOT be flagged as a mismatch — the
+        # zone identity is unchanged.
+        import io as _io
+        import json as _json
+        from contextlib import redirect_stderr
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            ws = Path(tmp) / "aha-workspace"
+            ws.mkdir()
+            (ws / ".manifest.json").write_text(
+                _json.dumps({
+                    "schema_version": 1,
+                    "timezone": "-05:00",  # winter offset (stale)
+                    "timezone_name": "America/New_York",
+                    "host_id": "laptop",
+                }),
+                encoding="utf-8",
+            )
+            buf = _io.StringIO()
+            with redirect_stderr(buf), patch.object(
+                aha_md, "_detect_iana_tz", return_value="America/New_York"
+            ):
+                aha_md.check_manifest_consistency()
+            self.assertNotIn("timezone mismatch", buf.getvalue())
+
+    def test_consistency_warns_on_iana_name_mismatch(self):
+        # P2#15: different IANA names → real timezone mismatch even if
+        # the current offset happens to match.
+        import io as _io
+        import json as _json
+        from contextlib import redirect_stderr
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            ws = Path(tmp) / "aha-workspace"
+            ws.mkdir()
+            (ws / ".manifest.json").write_text(
+                _json.dumps({
+                    "schema_version": 1,
+                    "timezone": "+08:00",
+                    "timezone_name": "Asia/Shanghai",
+                    "host_id": "laptop",
+                }),
+                encoding="utf-8",
+            )
+            buf = _io.StringIO()
+            with redirect_stderr(buf), patch.object(
+                aha_md, "_detect_iana_tz", return_value="Asia/Singapore"
+            ):
+                aha_md.check_manifest_consistency()
+            self.assertIn("timezone mismatch", buf.getvalue())
+            self.assertIn("Asia/Shanghai", buf.getvalue())
+            self.assertIn("Asia/Singapore", buf.getvalue())
+
+    def test_consistency_falls_back_to_offset_when_name_absent(self):
+        # P2#15: pre-P2#15 manifests have no timezone_name. We must
+        # still warn if the offset disagrees.
+        import io as _io
+        import json as _json
+        from contextlib import redirect_stderr
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            ws = Path(tmp) / "aha-workspace"
+            ws.mkdir()
+            (ws / ".manifest.json").write_text(
+                _json.dumps({
+                    "schema_version": 1,
+                    "timezone": "-12:00",  # legacy, no name
+                    "host_id": "other-machine",
+                }),
+                encoding="utf-8",
+            )
+            buf = _io.StringIO()
+            # Force "no IANA on current host" so we hit the fallback path.
+            with redirect_stderr(buf), patch.object(
+                aha_md, "_detect_iana_tz", return_value=""
+            ):
+                aha_md.check_manifest_consistency()
+            self.assertIn("timezone mismatch", buf.getvalue())
+
 
 class ParseDtTest(unittest.TestCase):
     def test_naive_datetime_gets_local_tz(self):

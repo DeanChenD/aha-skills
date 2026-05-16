@@ -593,6 +593,33 @@ def _current_tz_str():
     return raw or ""
 
 
+def _detect_iana_tz():
+    """Best-effort IANA timezone name (e.g. "Asia/Shanghai").
+
+    Returns "" when the OS doesn't expose it portably. The lookup order:
+    1. TZ env var if it looks IANA-shaped (contains "/")
+    2. /etc/localtime symlink target on POSIX
+
+    Python's stdlib doesn't expose the system IANA name directly — only
+    the offset via datetime.astimezone(). We need the name so the
+    manifest survives DST transitions: comparing offsets alone false-
+    positives every spring/autumn.
+    """
+    import os as _os
+    tz_env = _os.environ.get("TZ", "")
+    if tz_env and "/" in tz_env:
+        return tz_env
+    try:
+        link = _os.readlink("/etc/localtime")
+    except OSError:
+        return ""
+    marker = "/zoneinfo/"
+    idx = link.find(marker)
+    if idx == -1:
+        return ""
+    return link[idx + len(marker):]
+
+
 def workspace_anchor():
     """Find the directory containing aha-workspace/.
 
@@ -738,6 +765,7 @@ def ensure_workspace_manifest():
         payload = {
             "schema_version": CURRENT_SCHEMA_VERSION,
             "timezone": _current_tz_str(),
+            "timezone_name": _detect_iana_tz(),
             "host_id": host,
             "created_at": now_iso,
             "last_touched_by": host,
@@ -745,6 +773,10 @@ def ensure_workspace_manifest():
         }
     else:
         payload = dict(existing)
+        # Backfill timezone_name onto manifests that predate P2#15 so
+        # DST-aware comparisons can kick in on the next run.
+        if not payload.get("timezone_name"):
+            payload["timezone_name"] = _detect_iana_tz()
         payload["last_touched_by"] = host
         payload["last_touched_at"] = now_iso
     atomic_write(p, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
@@ -760,15 +792,28 @@ def check_manifest_consistency():
     if manifest is None:
         return
     import sys as _sys
-    expected_tz = manifest.get("timezone")
-    cur_tz = _current_tz_str()
-    if expected_tz and expected_tz != cur_tz:
-        print(
-            f"warning: workspace timezone mismatch ({manifest.get('host_id')} "
-            f"created with {expected_tz}, current host is {cur_tz}). "
-            "Period boundaries (today / this week / this month) may shift.",
-            file=_sys.stderr,
-        )
+    expected_name = manifest.get("timezone_name") or ""
+    cur_name = _detect_iana_tz()
+    if expected_name and cur_name:
+        # Both sides know IANA — compare those, ignore offset (DST-safe).
+        if expected_name != cur_name:
+            print(
+                f"warning: workspace timezone mismatch ({manifest.get('host_id')} "
+                f"created with {expected_name}, current host is {cur_name}). "
+                "Period boundaries (today / this week / this month) may shift.",
+                file=_sys.stderr,
+            )
+    else:
+        # Either side lacks IANA — fall back to offset comparison.
+        expected_tz = manifest.get("timezone")
+        cur_tz = _current_tz_str()
+        if expected_tz and expected_tz != cur_tz:
+            print(
+                f"warning: workspace timezone mismatch ({manifest.get('host_id')} "
+                f"created with {expected_tz}, current host is {cur_tz}). "
+                "Period boundaries (today / this week / this month) may shift.",
+                file=_sys.stderr,
+            )
     expected_schema = manifest.get("schema_version")
     try:
         if expected_schema is not None and int(expected_schema) != CURRENT_SCHEMA_VERSION:
