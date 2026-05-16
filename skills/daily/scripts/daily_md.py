@@ -35,6 +35,7 @@ from aha_md import (  # noqa: E402
     resolve_text_input,
     sanitize_single_line,
     schema_version_compatible,
+    task_in_period,
     save_record,
     set_meta,
     slugify,
@@ -521,10 +522,7 @@ def _task_filter_for_mode(meta, args, now):
     if args.mode == "period":
         anchor = parse_date_arg(args.date) if args.date else now.date()
         start, end = period_range(args.period, anchor)
-        updated = parse_dt(meta.get("updated_at"))
-        if updated is None:
-            return False
-        return start <= updated.date() <= end
+        return task_in_period(meta, start, end)
     return False
 
 
@@ -649,13 +647,7 @@ def _render_review_snapshot(start, end):
     tasks = [r for r in _load_task_records()]
     tasks_in = []
     for path, meta, body in tasks:
-        updated = parse_dt(meta.get("updated_at"))
-        completed = parse_dt(meta.get("completed_at"))
-        in_window = (
-            (updated is not None and start <= updated.date() <= end)
-            or (completed is not None and start <= completed.date() <= end)
-        )
-        if in_window:
+        if task_in_period(meta, start, end):
             tasks_in.append((path, meta, body))
 
     completed_in = [(p, m, b) for p, m, b in tasks_in if m.get("status") == "done"]

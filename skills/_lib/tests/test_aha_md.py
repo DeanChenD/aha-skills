@@ -456,6 +456,76 @@ class SchemaVersionCompatibleTest(unittest.TestCase):
         self.assertIn("unparseable", buf.getvalue())
 
 
+class TaskInPeriodTest(unittest.TestCase):
+    """P1#8: period inclusion for tasks is the union of four signals,
+    not just updated_at. A task captured before the window with a due
+    date inside it, or still-active overdue at end of window, must show
+    up in the period review — those are exactly the entries the operator
+    needs to confront."""
+
+    def setUp(self):
+        from datetime import date as _date
+        self.start = _date(2026, 5, 11)  # Monday
+        self.end = _date(2026, 5, 17)    # Sunday
+
+    def _meta(self, **kw):
+        d = {"status": "pending"}
+        d.update(kw)
+        return d
+
+    def test_updated_in_window_included(self):
+        self.assertTrue(aha_md.task_in_period(
+            self._meta(updated_at="2026-05-13T10:00:00"), self.start, self.end,
+        ))
+
+    def test_completed_in_window_included(self):
+        # Touched before window, completed inside — should appear
+        self.assertTrue(aha_md.task_in_period(
+            self._meta(
+                updated_at="2026-04-01T00:00:00",
+                completed_at="2026-05-14T09:00:00",
+                status="done",
+            ),
+            self.start, self.end,
+        ))
+
+    def test_due_in_window_included(self):
+        # Captured long ago, never touched, but due falls inside the window
+        self.assertTrue(aha_md.task_in_period(
+            self._meta(
+                updated_at="2026-04-01T00:00:00",
+                due_at="2026-05-15T18:00:00",
+            ),
+            self.start, self.end,
+        ))
+
+    def test_active_overdue_by_end_included(self):
+        # Due before the window, never touched, still active — must surface
+        self.assertTrue(aha_md.task_in_period(
+            self._meta(
+                updated_at="2026-04-01T00:00:00",
+                due_at="2026-04-10T00:00:00",
+                status="in_progress",
+            ),
+            self.start, self.end,
+        ))
+
+    def test_done_overdue_before_window_excluded(self):
+        # Done before window, due before window → not in period
+        self.assertFalse(aha_md.task_in_period(
+            self._meta(
+                updated_at="2026-04-01T00:00:00",
+                completed_at="2026-04-05T00:00:00",
+                due_at="2026-04-10T00:00:00",
+                status="done",
+            ),
+            self.start, self.end,
+        ))
+
+    def test_no_signals_excluded(self):
+        self.assertFalse(aha_md.task_in_period(self._meta(), self.start, self.end))
+
+
 class SplitFrontmatterRobustnessTest(unittest.TestCase):
     """P1#14: a Windows editor or a Windows-touched sync round trip can
     inject a UTF-8 BOM at the file start and rewrite line endings to

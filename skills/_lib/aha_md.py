@@ -648,6 +648,45 @@ def check_manifest_consistency():
         pass
 
 
+_ACTIVE_TASK_STATUSES = ("pending", "in_progress", "blocked")
+
+
+def task_in_period(meta, start, end):
+    """True if a task record should be included in a [start, end] period
+    snapshot. Period-aware logic shared between reflect aggregation and
+    daily review.
+
+    Inclusion criteria — any of:
+
+    - the task was *touched* in window (``updated_at``);
+    - the task was *completed* in window (``completed_at``);
+    - the task was *due* in window (``due_at``); covers tasks created
+      before the period and not yet touched but whose deadline lands
+      inside it;
+    - the task is *still active and overdue by the end of the window*
+      — these need attention even if nothing happened recently.
+
+    Without the last three criteria, a stale-but-due task drops out of
+    period reviews entirely, which is exactly when the operator most
+    needs to see it.
+    """
+    def in_window(dt):
+        return dt is not None and start <= dt.date() <= end
+
+    updated = parse_dt(meta.get("updated_at"))
+    completed = parse_dt(meta.get("completed_at"))
+    due = parse_dt(meta.get("due_at"))
+    if in_window(updated) or in_window(completed) or in_window(due):
+        return True
+    if (
+        meta.get("status", "") in _ACTIVE_TASK_STATUSES
+        and due is not None
+        and due.date() <= end
+    ):
+        return True
+    return False
+
+
 def iter_record_paths(root, pattern="*.md"):
     """Yield ``.md`` record paths under ``root`` in sorted order, skipping
     sync-tool conflict copies. Drop-in for ``sorted(root.rglob("*.md"))``

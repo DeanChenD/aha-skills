@@ -36,6 +36,7 @@ from aha_md import (  # noqa: E402
     render_untrusted_inline,
     schema_version_compatible,
     split_frontmatter,
+    task_in_period,
     title_from_body,
     unique_path,
     workspace_dir,
@@ -146,7 +147,7 @@ def load_records(source, start, end):
                     continue
                 if meta.get("type") and meta.get("type") != "task":
                     continue
-                if not in_range(_record_date_for_range(meta), start, end):
+                if not task_in_period(meta, start, end):
                     continue
                 out.append(("daily.task", "task", meta, body, path))
         root = _daily_logs_dir()
