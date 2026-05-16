@@ -300,6 +300,17 @@ def _do_update(path, args):
     if args.due is not None:
         new_due_iso = parse_due(args.due) if args.due else ""
         old_due = meta.get("due_at", "")
+        # README:153 / SKILL.md require an explicit reason when an
+        # existing due moves. Silent re-dating loses the postponement
+        # history. --correction is the bypass for fat-finger recording
+        # mistakes (no log entry, no count bump).
+        moving_existing_due = bool(old_due) and new_due_iso != old_due
+        if moving_existing_due and not args.postpone_reason and not args.correction:
+            raise SystemExit(
+                "Refusing to change due_at without a reason.\n"
+                "  --postpone-reason \"...\" to log a postponement, or\n"
+                "  --correction to fix a data-entry mistake (no log, no count bump)."
+            )
         set_meta(lines, "due_at", new_due_iso)
         if args.postpone_reason:
             new_count = int_meta(meta, "postpone_count") + 1
@@ -764,7 +775,11 @@ def main():
     p_update.add_argument("--due", help="New due date/datetime, or empty string to clear.")
     p_update.add_argument(
         "--postpone-reason",
-        help="If set together with --due, append a Postponement Log line and bump postpone_count.",
+        help="Required when moving an existing due_at; appends a Postponement Log line and bumps postpone_count.",
+    )
+    p_update.add_argument(
+        "--correction", action="store_true",
+        help="Bypass --postpone-reason requirement for data-entry corrections (no log, no count bump).",
     )
     p_update.add_argument("--priority", choices=list(PRIORITIES))
     p_update.add_argument("--category")

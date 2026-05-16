@@ -45,6 +45,8 @@ All paths are resolved under the current working directory:
 printf '%s' "$TASK_TEXT" | python3 <skill-dir>/scripts/daily_md.py task --text-stdin --due "2026-05-20T18:00"
 python3 <skill-dir>/scripts/daily_md.py update <file> --status done
 python3 <skill-dir>/scripts/daily_md.py update <file> --due "2026-05-25" --postpone-reason "..."
+# Data-entry mistakes (wrong due typed during capture) → --correction (no log, no count):
+python3 <skill-dir>/scripts/daily_md.py update <file> --due "2026-05-25" --correction
 python3 <skill-dir>/scripts/daily_md.py update <file> --difficulty "..."
 python3 <skill-dir>/scripts/daily_md.py checkin <file> \
     --topic-file ./topic.txt --conversation-file ./conv.txt --takeaway-file ./tk.txt

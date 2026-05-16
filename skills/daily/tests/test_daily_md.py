@@ -101,8 +101,22 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertIn("PRD review pending", text)
             self.assertIn("→ 2030-06-10T23:59:59", text)
 
-            # Bare due change WITHOUT reason → no new log line, count unchanged
-            run_cli("update", str(path), "--due", "2030-06-20", cwd=tmp)
+            # P1#3: bare due change WITHOUT a reason is now refused; the
+            # operator must either supply --postpone-reason or pass
+            # --correction (for data-entry mistakes).
+            import subprocess
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "update", str(path),
+                 "--due", "2030-06-20"],
+                capture_output=True, text=True, cwd=tmp,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("--postpone-reason", result.stderr)
+            # File untouched by the rejected attempt
+            self.assertEqual(text, path.read_text(encoding="utf-8"))
+
+            # --correction bypass: silent re-date, no new log line, count unchanged
+            run_cli("update", str(path), "--due", "2030-06-20", "--correction", cwd=tmp)
             text2 = path.read_text(encoding="utf-8")
             self.assertIn("postpone_count: 1", text2)
             self.assertIn("due_at: 2030-06-20T23:59:59", text2)
