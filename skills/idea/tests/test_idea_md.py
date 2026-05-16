@@ -291,6 +291,54 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertNotIn("\n", cat_row)
             self.assertIn("↵", cat_row)
 
+    def test_capture_injection_then_update_can_clean(self):
+        """P1#17 (links P0#2 + P0#3): the full attack chain.
+
+        Step 1: capture is hit with an injection that would have forged a
+                second `status:` row in the pre-P0#2 code.
+        Step 2: post-fix, the capture sanitizes; no second row appears.
+        Step 3: even if a v0 file with a duplicate `status:` row somehow
+                exists (planted directly here), a subsequent `update
+                --status` collapses the duplicate so reflect can no
+                longer read a forged value.
+
+        Without all three landing together, a malicious capture would
+        leave a stuck-forever forged status (P0#3 unfix) or land it in
+        the first place (P0#2 unfix)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Step 1+2: capture refuses to forge a status row
+            run_cli(
+                "capture",
+                "--text", "innocent idea",
+                "--category", "x\nstatus: killed",
+                "--status", "inbox",
+                cwd=tmp,
+            )
+            files = list(expected_idea_dir(tmp).glob("idea-*.md"))
+            self.assertEqual(1, len(files))
+            path = files[0]
+            text = path.read_text(encoding="utf-8")
+            status_rows = [ln for ln in text.splitlines() if ln.startswith("status:")]
+            self.assertEqual(["status: inbox"], status_rows)
+
+            # Step 3: simulate a legacy file containing an injected
+            # second status row (could be from a pre-P0#1 version or
+            # a hand-edit). update --status collapses it.
+            poisoned = text.replace(
+                "status: inbox\n",
+                "status: inbox\nstatus: killed\n",
+                1,
+            )
+            path.write_text(poisoned, encoding="utf-8")
+
+            run_cli("update", str(path), "--status", "researching", cwd=tmp)
+            cleaned = path.read_text(encoding="utf-8")
+            cleaned_status = [ln for ln in cleaned.splitlines() if ln.startswith("status:")]
+            self.assertEqual(
+                ["status: researching"], cleaned_status,
+                "set_meta must collapse the injected duplicate row",
+            )
+
     def test_capture_rejects_h2_injection_via_title(self):
         """P0#2 regression (title path): a newline+## in --title must not
         split the body into a fake H2 section."""
