@@ -155,6 +155,29 @@ class TagsTest(unittest.TestCase):
             res2 = run(REFLECT_SCRIPT, "tags", "--period", "day", "--min-count", "2", cwd=tmp)
             self.assertNotIn("agent\tplan", res2.stdout)
 
+    def test_pair_row_lists_source_record_ids(self):
+        """P1#4: SKILL.md:124 says co-occurrence pair rows carry
+        `<source_records_csv>` — actual record ids, not just source
+        labels. Without ids the operator cannot follow the link back
+        to the concrete record that produced the pair."""
+        with tempfile.TemporaryDirectory() as tmp:
+            seed_idea(tmp, "idea text 1", tags="agent,plan")
+            seed_dao(tmp, "dao text 1", tags="agent,plan")
+
+            res = run(REFLECT_SCRIPT, "tags", "--period", "day", "--min-count", "1", cwd=tmp)
+            sections = res.stdout.split("\n\n")
+            self.assertGreaterEqual(len(sections), 2)
+            pair_line = next(
+                ln for ln in sections[1].splitlines()
+                if ln.startswith("agent\tplan\t")
+            )
+            cols = pair_line.split("\t")
+            self.assertEqual(4, len(cols), f"expected 4 cols, got: {pair_line!r}")
+            ids_csv = cols[3]
+            # Both records contributed; format <source>:<id>
+            self.assertIn("idea:", ids_csv)
+            self.assertIn("dao:", ids_csv)
+
 
 class DifficultiesTest(unittest.TestCase):
     def test_difficulty_in_range_extracted(self):

@@ -198,10 +198,11 @@ def aggregate(args):
 
 def _records_with_tags(records):
     out = []
-    for source, _sub_type, meta, _body, _path in records:
+    for source, _sub_type, meta, _body, path in records:
         tags = parse_tags_field(meta.get("tags", ""))
         if tags:
-            out.append((source, tags))
+            record_id = meta.get("id") or meta.get("date") or Path(path).stem
+            out.append((source, record_id, tags))
     return out
 
 
@@ -212,20 +213,20 @@ def tags(args):
 
     freq = {}
     sources_for_tag = {}
-    for source, ts in tagged:
+    for source, _rid, ts in tagged:
         for t in ts:
             freq[t] = freq.get(t, 0) + 1
             sources_for_tag.setdefault(t, set()).add(source)
 
     co_pairs = {}
-    sources_for_pair = {}
-    for source, ts in tagged:
+    records_for_pair = {}
+    for source, rid, ts in tagged:
         unique = sorted(set(ts))
         for i in range(len(unique)):
             for j in range(i + 1, len(unique)):
                 pair = (unique[i], unique[j])
                 co_pairs[pair] = co_pairs.get(pair, 0) + 1
-                sources_for_pair.setdefault(pair, set()).add(source)
+                records_for_pair.setdefault(pair, set()).add(f"{source}:{rid}")
 
     freq_lines = sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))
     for tag, count in freq_lines:
@@ -238,7 +239,8 @@ def tags(args):
     if pair_rows:
         print()
         for (a, b), count in pair_rows:
-            print(f"{a}\t{b}\t{count}\t{','.join(sorted(sources_for_pair[(a, b)]))}")
+            # source_records_csv = list of <source>:<id> that carry both tags
+            print(f"{a}\t{b}\t{count}\t{','.join(sorted(records_for_pair[(a, b)]))}")
 
 
 def difficulties(args):
@@ -388,7 +390,7 @@ def _render_tag_summary(records):
     tagged = _records_with_tags(records)
     freq = {}
     sources_for_tag = {}
-    for source, ts in tagged:
+    for source, _rid, ts in tagged:
         for t in ts:
             freq[t] = freq.get(t, 0) + 1
             sources_for_tag.setdefault(t, set()).add(source)
