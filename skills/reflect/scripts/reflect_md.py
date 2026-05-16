@@ -22,6 +22,7 @@ from aha_md import (  # noqa: E402
     WORKSPACE_DIR_NAME,
     atomic_write,
     check_manifest_consistency,
+    doctor_workspace,
     ensure_dir,
     ensure_workspace_manifest,
     extract_difficulty_entries,
@@ -479,8 +480,15 @@ def main():
     _add_period_args(p_save)
     p_save.set_defaults(func=save)
 
+    p_doctor = sub.add_parser(
+        "doctor",
+        help="Inspect workspace anchor, manifest, and timezone consistency.",
+    )
+    p_doctor.set_defaults(func=lambda _args: sys.exit(doctor_workspace()))
+
     args = parser.parse_args()
-    check_manifest_consistency()
+    if args.cmd != "doctor":
+        check_manifest_consistency()
     args.func(args)
 
 

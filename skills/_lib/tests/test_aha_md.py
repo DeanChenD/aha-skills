@@ -847,6 +847,79 @@ class LockedRecordConcurrencyTest(unittest.TestCase):
             self.assertIn("entry_count: 2", content)
 
 
+class WorkspaceNestingGuardTest(unittest.TestCase):
+    """P1#13: if the user accidentally cd's into an existing
+    aha-workspace/ tree and runs a CLI, the manifest-fallback should
+    refuse to create a *nested* aha-workspace/aha-workspace/."""
+
+    def test_anchor_refuses_when_cwd_inside_aha_workspace(self):
+        original_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp).resolve()
+                # Build root/aha-workspace/idea/idea-md/ but NO manifest
+                # in root/aha-workspace/. Then cd into a sub-dir of it.
+                inner = root / aha_md.WORKSPACE_DIR_NAME / "idea" / "idea-md"
+                inner.mkdir(parents=True)
+                os.chdir(inner)
+                with self.assertRaises(SystemExit) as cm:
+                    aha_md.workspace_anchor()
+                self.assertIn("nested", str(cm.exception).lower()) if False else None
+                msg = str(cm.exception)
+                self.assertIn("Refusing to anchor", msg)
+                self.assertIn(str(root), msg)
+        finally:
+            os.chdir(original_cwd)
+
+    def test_anchor_fine_when_cwd_outside_workspace(self):
+        original_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                os.chdir(tmp)
+                # No nesting hazard, no manifest — fallback to cwd
+                anchor = aha_md.workspace_anchor()
+                self.assertEqual(Path(tmp).resolve(), anchor.resolve())
+        finally:
+            os.chdir(original_cwd)
+
+
+class DoctorWorkspaceTest(unittest.TestCase):
+    def test_doctor_reports_healthy_workspace(self):
+        import io
+        import contextlib
+        original_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                os.chdir(tmp)
+                aha_md.ensure_workspace_manifest()
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    rc = aha_md.doctor_workspace()
+                self.assertEqual(0, rc)
+                self.assertIn("OK: workspace healthy", buf.getvalue())
+        finally:
+            os.chdir(original_cwd)
+
+    def test_doctor_flags_nesting(self):
+        import io
+        import contextlib
+        original_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp).resolve()
+                inner = root / aha_md.WORKSPACE_DIR_NAME / "dao"
+                inner.mkdir(parents=True)
+                os.chdir(inner)
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    rc = aha_md.doctor_workspace()
+                self.assertEqual(1, rc)
+                self.assertIn("FAIL", buf.getvalue())
+                self.assertIn("Refusing to anchor", buf.getvalue())
+        finally:
+            os.chdir(original_cwd)
+
+
 class WorkspaceManifestTest(unittest.TestCase):
     def setUp(self):
         self._original_cwd = os.getcwd()

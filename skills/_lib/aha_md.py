@@ -601,8 +601,14 @@ def workspace_anchor():
     sibling tempdirs do not accidentally bind to an unrelated workspace.
 
     Stops at $HOME so a stray system-level manifest cannot be picked up.
-    Falls back to cwd if nothing is found — first-time users get a workspace
-    at their current directory.
+
+    If no manifest is found, falls back to cwd — UNLESS cwd is itself
+    inside an existing `aha-workspace/` tree. That case would create a
+    nested ``aha-workspace/aha-workspace/`` next time a CLI runs, which
+    is almost always a paste error (the user cd'd into the workspace
+    instead of staying at its parent). Refusing loudly lets the
+    operator either ``cd`` to the parent or run ``doctor`` to
+    materialise a manifest at the correct level.
     """
     here = Path.cwd().resolve()
     try:
@@ -615,7 +621,76 @@ def workspace_anchor():
             return candidate
         if home is not None and candidate == home:
             break
+    # No manifest. Refuse to anchor here if cwd is already nested
+    # inside an existing aha-workspace tree.
+    for ancestor in here.parents:
+        if ancestor.name == WORKSPACE_DIR_NAME:
+            raise SystemExit(
+                f"Refusing to anchor a new workspace under an existing "
+                f"`{WORKSPACE_DIR_NAME}/` ancestor:\n"
+                f"  cwd: {here}\n"
+                f"  parent workspace root: {ancestor.parent}\n"
+                f"Either cd up to {ancestor.parent}, or run the doctor "
+                f"subcommand from there to repair the manifest."
+            )
+        if home is not None and ancestor == home:
+            break
     return here
+
+
+def doctor_workspace():
+    """Inspect the current workspace anchor and report common problems.
+
+    Used by the `doctor` subcommand each skill ships. Output goes to
+    stdout and the return value is the exit code (0 OK, 1 issues
+    found). Currently checks:
+
+    - manifest presence + readability,
+    - manifest TZ vs current host TZ,
+    - the cwd-nesting hazard (manifest fallback would create
+      `aha-workspace/aha-workspace/`).
+    """
+    here = Path.cwd().resolve()
+    problems = []
+    notes = []
+    # Try the anchor — workspace_anchor itself surfaces the nesting hazard
+    try:
+        root = workspace_anchor()
+    except SystemExit as e:
+        print(f"FAIL: {e}")
+        return 1
+    notes.append(f"workspace anchor: {root}")
+    manifest_path = root / WORKSPACE_DIR_NAME / ".manifest.json"
+    if not manifest_path.exists():
+        notes.append(
+            f"no manifest yet at {manifest_path} (first-time use; "
+            "run any capture / scan command to materialise one)."
+        )
+    else:
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            problems.append(f"manifest unreadable: {e}")
+            data = None
+        if data is not None:
+            stored_tz = data.get("timezone", "")
+            current_tz = _current_tz_str()
+            if stored_tz and current_tz and stored_tz != current_tz:
+                problems.append(
+                    f"manifest TZ ({stored_tz}) differs from current host TZ "
+                    f"({current_tz}); dates parsed from old records may "
+                    "drift. Override host TZ or update the manifest manually."
+                )
+            else:
+                notes.append(f"manifest TZ {stored_tz or '(unset)'} matches host.")
+    for line in notes:
+        print(f"INFO: {line}")
+    if problems:
+        for line in problems:
+            print(f"WARN: {line}")
+        return 1
+    print("OK: workspace healthy.")
+    return 0
 
 
 def workspace_dir(*subpath):

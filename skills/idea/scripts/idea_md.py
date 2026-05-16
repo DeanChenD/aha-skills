@@ -13,6 +13,7 @@ from aha_md import (  # noqa: E402
     assert_workspace_path,
     atomic_write,
     check_manifest_consistency,
+    doctor_workspace,
     ensure_dir,
     ensure_workspace_manifest,
     escape_pseudo_h2,
@@ -281,8 +282,15 @@ def main():
     p_update.add_argument("--note", help="Append an entry to Notes.")
     p_update.set_defaults(func=update)
 
+    p_doctor = sub.add_parser(
+        "doctor",
+        help="Inspect workspace anchor, manifest, and timezone consistency.",
+    )
+    p_doctor.set_defaults(func=lambda _args: sys.exit(doctor_workspace()))
+
     args = parser.parse_args()
-    check_manifest_consistency()
+    if args.cmd != "doctor":
+        check_manifest_consistency()
     args.func(args)
 
 
