@@ -30,6 +30,7 @@ from aha_md import (  # noqa: E402
     replace_section,
     resolve_text_input,
     sanitize_single_line,
+    schema_version_compatible,
     save_record,
     set_meta,
     slugify,
@@ -256,6 +257,8 @@ def scan(args):
         if not fm_lines:
             continue
         meta = parse_frontmatter_lines(fm_lines)
+        if not schema_version_compatible(meta, path=path):
+            continue
         tags = parse_tags_field(meta.get("tags", ""))
         category = meta.get("primary_category", "")
         if args.tag and args.tag not in tags:

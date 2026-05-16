@@ -420,6 +420,42 @@ class SchemaVersionTest(unittest.TestCase):
             self.assertEqual("1", meta["schema_version"])
 
 
+class SchemaVersionCompatibleTest(unittest.TestCase):
+    """P1#7: read-path callers (scan / reflect / daily aggregation) must
+    skip records carrying an unknown schema_version instead of
+    interpreting them with the wrong semantics."""
+
+    def test_accepts_matching_version(self):
+        self.assertTrue(
+            aha_md.schema_version_compatible({"schema_version": "1"})
+        )
+
+    def test_accepts_missing_version_legacy(self):
+        # Missing field is treated as legacy v1 to keep pre-schema files readable
+        self.assertTrue(aha_md.schema_version_compatible({}))
+
+    def test_rejects_mismatched_version_with_warning(self):
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            ok = aha_md.schema_version_compatible(
+                {"schema_version": "99"}, path="/tmp/x.md"
+            )
+        self.assertFalse(ok)
+        self.assertIn("schema_version mismatch", buf.getvalue())
+        self.assertIn("/tmp/x.md", buf.getvalue())
+
+    def test_rejects_unparseable_version(self):
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            ok = aha_md.schema_version_compatible({"schema_version": "weird"})
+        self.assertFalse(ok)
+        self.assertIn("unparseable", buf.getvalue())
+
+
 class AtomicWriteTest(unittest.TestCase):
     def test_atomic_write_replaces_completely(self):
         with tempfile.TemporaryDirectory() as tmp:

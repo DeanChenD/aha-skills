@@ -33,6 +33,7 @@ from aha_md import (  # noqa: E402
     period_range,
     read_section,
     render_untrusted_inline,
+    schema_version_compatible,
     split_frontmatter,
     title_from_body,
     unique_path,
@@ -71,7 +72,8 @@ def _reflect_dir():
 
 
 def _parse_frontmatter_with_body(path):
-    """Return (meta_dict, body) or (None, None) when path is not parseable."""
+    """Return (meta_dict, body) or (None, None) when path is not parseable
+    or has a schema_version we cannot interpret with current semantics."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -79,7 +81,10 @@ def _parse_frontmatter_with_body(path):
     lines, body = split_frontmatter(text)
     if not lines:
         return None, None
-    return parse_frontmatter_lines(lines), body
+    meta = parse_frontmatter_lines(lines)
+    if not schema_version_compatible(meta, path=path):
+        return None, None
+    return meta, body
 
 
 def parse_date_str(value):

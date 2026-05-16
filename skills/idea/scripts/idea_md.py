@@ -27,6 +27,7 @@ from aha_md import (  # noqa: E402
     resolve_text_input,
     sanitize_single_line,
     save_record,
+    schema_version_compatible,
     set_meta,
     slugify,
     split_frontmatter,
@@ -182,6 +183,8 @@ def scan(args):
     rows = []
     for path in sorted(root.rglob("*.md")):
         meta = parse_frontmatter(path)
+        if not schema_version_compatible(meta, path=path):
+            continue
         status = meta.get("status", "").strip()
         if args.include_completed:
             eligible = True

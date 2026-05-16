@@ -33,6 +33,7 @@ from aha_md import (  # noqa: E402
     render_untrusted_inline,
     resolve_text_input,
     sanitize_single_line,
+    schema_version_compatible,
     save_record,
     set_meta,
     slugify,
@@ -447,6 +448,8 @@ def _load_task_records():
         if not fm_lines:
             continue
         meta = parse_frontmatter_lines(fm_lines)
+        if not schema_version_compatible(meta, path=path):
+            continue
         if meta.get("type") and meta.get("type") != "task":
             continue
         records.append((path, meta, body))
@@ -463,6 +466,8 @@ def _load_log_records():
         if not fm_lines:
             continue
         meta = parse_frontmatter_lines(fm_lines)
+        if not schema_version_compatible(meta, path=path):
+            continue
         if meta.get("type") and meta.get("type") != "log":
             continue
         records.append((path, meta, body))

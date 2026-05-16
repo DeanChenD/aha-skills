@@ -623,6 +623,37 @@ def check_manifest_consistency():
         pass
 
 
+def schema_version_compatible(meta, *, path=None, expected=CURRENT_SCHEMA_VERSION):
+    """Read-side schema check: warn on mismatch, return False so the
+    caller can skip the record instead of mutating it under the wrong
+    semantics. Used by scan / reflect / load loops that may encounter a
+    mixed-version workspace mid-rollout.
+
+    Returns True if the record is safe to interpret with `expected`
+    semantics (missing field treated as legacy v1, accepted). Returns
+    False if the version mismatches; emits a single warning per call.
+    """
+    raw = meta.get("schema_version")
+    if not raw:
+        return True
+    try:
+        actual = int(raw)
+    except (TypeError, ValueError):
+        location = f" in {path}" if path else ""
+        sys.stderr.write(
+            f"warning: unparseable schema_version {raw!r}{location}; skipping.\n"
+        )
+        return False
+    if actual != expected:
+        location = f" in {path}" if path else ""
+        sys.stderr.write(
+            f"warning: schema_version mismatch (got {actual}, expected "
+            f"{expected}){location}; skipping. Run a migration before reading.\n"
+        )
+        return False
+    return True
+
+
 def assert_schema_version(meta, path=None, expected=CURRENT_SCHEMA_VERSION):
     """Validate frontmatter `schema_version` against expected.
 

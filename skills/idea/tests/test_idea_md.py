@@ -212,6 +212,36 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertEqual("", scan.stdout)
             self.assertTrue(expected_idea_dir(tmp).is_dir())
 
+    def test_scan_skips_unknown_schema_version(self):
+        """P1#7: a file written by a future skill version (schema_version: 99)
+        must not be re-surfaced by today's scan — semantics may have shifted.
+        Plant both a v1 (old enough to be stale) and a v99 record so the
+        skip is observable: v1 surfaces, v99 doesn't."""
+        with tempfile.TemporaryDirectory() as tmp:
+            idea_dir = expected_idea_dir(tmp)
+            idea_dir.mkdir(parents=True, exist_ok=True)
+            # Capture once to lay the manifest, then overwrite with an old timestamp
+            run_cli("capture", "--text", "an old idea", "--source", "chat", cwd=tmp)
+            v1 = next(idea_dir.glob("idea-*.md"))
+            v1.write_text(
+                "---\nschema_version: 1\nid: legacy\nstatus: researching\n"
+                "updated_at: 2020-01-01T00:00:00\nlast_prompted_at:\n"
+                "next_review_at:\n---\n# Legacy\n## Raw Idea\nstale\n",
+                encoding="utf-8",
+            )
+            # Plant a v99 record beside it (same staleness, should still be skipped)
+            v99 = idea_dir / "idea-future.md"
+            v99.write_text(
+                "---\nschema_version: 99\nid: future\nstatus: researching\n"
+                "updated_at: 2020-01-01T00:00:00\nlast_prompted_at:\n"
+                "next_review_at:\n---\n# Future\n",
+                encoding="utf-8",
+            )
+            scan = run_cli("scan", "--stale-days", "7", "--peek", cwd=tmp)
+            self.assertIn(str(v1), scan.stdout)
+            self.assertNotIn("idea-future.md", scan.stdout)
+            self.assertIn("schema_version mismatch", scan.stderr)
+
     def test_capture_rejects_frontmatter_injection_via_category(self):
         """P0#2 regression: a newline inside --category must not split into
         a second frontmatter row that forges status / schema_version."""
