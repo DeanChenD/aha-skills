@@ -221,8 +221,15 @@ created_at: {timestamp}
     atomic_write(session_path, session_body)
 
     rel_link = (Path("..") / "sessions" / session_path.name).as_posix()
+    # If unique_path bumped the reserved id (e.g. session-006 → session-006-2
+    # because an orphan from a prior crash already occupied 006), the label
+    # in ## Discussion must reflect the bumped id — otherwise the link
+    # target and the visible "Session NNN" text disagree.
+    display_index = (
+        session_id.split("-session-", 1)[1] if "-session-" in session_id else session_index
+    )
     summary_line = (
-        f"- {now.date().isoformat()}: [Session {session_index}]({rel_link}) — {takeaway}"
+        f"- {now.date().isoformat()}: [Session {display_index}]({rel_link}) — {takeaway}"
     )
     body = append_to_section(body, DISCUSSION_HEADING, summary_line)
 

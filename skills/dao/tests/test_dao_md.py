@@ -454,6 +454,13 @@ class DaoMarkdownCliTest(unittest.TestCase):
                 any("session-001-2" in n for n in siblings),
                 f"expected bumped session-001-2 path; got {siblings}",
             )
+            # R3#12: the parent's ## Discussion summary line must reference
+            # the bumped reserved index (001-2), not the pre-bump 001 — else
+            # the link text "Session 001" disagrees with the link target.
+            dao_text = dao_path.read_text(encoding="utf-8")
+            self.assertIn("[Session 001-2](", dao_text)
+            self.assertIn("session-001-2.md", dao_text)
+            self.assertNotIn("[Session 001](", dao_text)
 
     def test_refine_refuses_session_file_as_if_it_were_dao_record(self):
         """P0#5: dao refine/discuss/update operate on the canonical record
