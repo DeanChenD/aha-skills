@@ -245,6 +245,35 @@ class SaveTest(unittest.TestCase):
             self.assertNotEqual(first.name, second.name)
             self.assertTrue(second.name.endswith("-2.md"))
 
+    def test_save_includes_source_health_block(self):
+        """P1#6: ## Source Health block surfaces per-source
+        present/out-of-range/parse-error counts + missing flags so a
+        silently-skipped source can no longer rot unnoticed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            seed_idea(tmp, "today's idea")
+            # No dao or daily records → those source roots will be missing
+            res = run(REFLECT_SCRIPT, "save", "--period", "day", cwd=tmp)
+            text = Path(res.stdout.strip()).read_text(encoding="utf-8")
+            self.assertIn("## Source Health", text)
+            self.assertIn("| idea |", text)
+            # daily.task and daily.log roots don't exist yet, so missing=yes
+            self.assertIn("| daily.task |", text)
+            self.assertIn("Host TZ:", text)
+
+    def test_aggregate_strict_exits_when_source_missing(self):
+        """--strict turns silent skip into a non-zero exit, so a CI
+        pipeline can fail loud on missing source roots."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            # No records anywhere — all four source roots missing
+            result = subprocess.run(
+                [sys.executable, str(REFLECT_SCRIPT), "aggregate",
+                 "--period", "day", "--strict"],
+                capture_output=True, text=True, cwd=tmp,
+            )
+            self.assertEqual(2, result.returncode)
+            self.assertIn("strict", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

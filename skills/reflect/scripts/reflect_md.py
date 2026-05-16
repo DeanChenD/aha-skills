@@ -113,54 +113,96 @@ def _record_date_for_range(meta):
     return None
 
 
+def _new_health_bucket():
+    return {"present": 0, "out_of_range": 0, "parse_error": 0, "missing": False}
+
+
 def load_records(source, start, end):
-    """Yield (source_label, sub_type, meta, body, path) for records in range."""
+    """Yield (source_label, sub_type, meta, body, path) for records in range.
+
+    Returns a tuple ``(records, health)`` where ``health`` is a per-source
+    dict of counters used by ``## Source Health`` rendering and the
+    ``--strict`` failure mode.
+    """
     out = []
+    health = {
+        "idea": _new_health_bucket(),
+        "dao": _new_health_bucket(),
+        "daily.task": _new_health_bucket(),
+        "daily.log": _new_health_bucket(),
+    }
+
+    def scan_source(label, root, *, type_filter=None, date_extractor=None):
+        if not root.is_dir():
+            health[label]["missing"] = True
+            return
+        for path in iter_record_paths(root):
+            meta, body = _parse_frontmatter_with_body(path)
+            if meta is None:
+                health[label]["parse_error"] += 1
+                continue
+            if type_filter and meta.get("type") and meta.get("type") != type_filter:
+                continue
+            if date_extractor is not None:
+                if not date_extractor(meta):
+                    health[label]["out_of_range"] += 1
+                    continue
+            health[label]["present"] += 1
+            out.append((label, type_filter or label, meta, body, path))
+
     if source in ("idea", "all"):
-        root = _idea_dir()
-        if root.is_dir():
-            for path in iter_record_paths(root):
-                meta, body = _parse_frontmatter_with_body(path)
-                if meta is None:
-                    continue
-                if not in_range(_record_date_for_range(meta), start, end):
-                    continue
-                out.append(("idea", "idea", meta, body, path))
+        scan_source(
+            "idea", _idea_dir(),
+            date_extractor=lambda m: in_range(_record_date_for_range(m), start, end),
+        )
     if source in ("dao", "all"):
-        root = _dao_dir()
-        if root.is_dir():
-            for path in iter_record_paths(root):
-                meta, body = _parse_frontmatter_with_body(path)
-                if meta is None:
-                    continue
-                if not in_range(_record_date_for_range(meta), start, end):
-                    continue
-                out.append(("dao", "dao", meta, body, path))
+        scan_source(
+            "dao", _dao_dir(),
+            date_extractor=lambda m: in_range(_record_date_for_range(m), start, end),
+        )
     if source in ("daily", "all"):
-        root = _daily_tasks_dir()
-        if root.is_dir():
-            for path in iter_record_paths(root):
-                meta, body = _parse_frontmatter_with_body(path)
-                if meta is None:
-                    continue
-                if meta.get("type") and meta.get("type") != "task":
-                    continue
-                if not task_in_period(meta, start, end):
-                    continue
-                out.append(("daily.task", "task", meta, body, path))
-        root = _daily_logs_dir()
-        if root.is_dir():
-            for path in iter_record_paths(root):
-                meta, body = _parse_frontmatter_with_body(path)
-                if meta is None:
-                    continue
-                if meta.get("type") and meta.get("type") != "log":
-                    continue
-                log_date = parse_date_str(meta.get("date", ""))
-                if not in_range(log_date, start, end):
-                    continue
-                out.append(("daily.log", "log", meta, body, path))
-    return out
+        scan_source(
+            "daily.task", _daily_tasks_dir(),
+            type_filter="task",
+            date_extractor=lambda m: task_in_period(m, start, end),
+        )
+        scan_source(
+            "daily.log", _daily_logs_dir(),
+            type_filter="log",
+            date_extractor=lambda m: in_range(parse_date_str(m.get("date", "")), start, end),
+        )
+    return out, health
+
+
+def _render_source_health(health):
+    """Render a Source Health markdown block for save() snapshots.
+
+    Lists each source's present/out_of_range/parse_error counts plus a
+    missing flag. The block surfaces silent skip conditions a future
+    operator would otherwise have no way to diagnose.
+    """
+    rows = ["| source | present | out-of-range | parse-error | root missing |",
+            "|---|---|---|---|---|"]
+    for source in ("idea", "dao", "daily.task", "daily.log"):
+        h = health.get(source, _new_health_bucket())
+        rows.append(
+            f"| {source} | {h['present']} | {h['out_of_range']} | "
+            f"{h['parse_error']} | {'yes' if h['missing'] else 'no'} |"
+        )
+    rows.append("")
+    from datetime import datetime as _datetime
+    tz_str = _datetime.now().astimezone().strftime("%z")
+    if len(tz_str) == 5:
+        tz_str = f"{tz_str[:3]}:{tz_str[3:]}"
+    rows.append(f"_Host TZ: {tz_str}_")
+    return "\n".join(rows)
+
+
+def _health_has_issues(health):
+    for h in health.values():
+        if h.get("missing") or h.get("parse_error", 0) > 0:
+            return True
+    return False
 
 
 def _resolve_period(args):
@@ -173,7 +215,15 @@ def _resolve_period(args):
 
 def aggregate(args):
     start, end = _resolve_period(args)
-    records = load_records(args.source, start, end)
+    records, health = load_records(args.source, start, end)
+    if getattr(args, "strict", False) and _health_has_issues(health):
+        for source, h in health.items():
+            if h["missing"] or h["parse_error"]:
+                sys.stderr.write(
+                    f"strict: {source} — missing={h['missing']} "
+                    f"parse_error={h['parse_error']}\n"
+                )
+        raise SystemExit(2)
     for source, sub_type, meta, body, path in records:
         if source == "idea":
             status = meta.get("status", "")
@@ -213,7 +263,15 @@ def _records_with_tags(records):
 
 def tags(args):
     start, end = _resolve_period(args)
-    records = load_records(args.source, start, end)
+    records, health = load_records(args.source, start, end)
+    if getattr(args, "strict", False) and _health_has_issues(health):
+        for source, h in health.items():
+            if h["missing"] or h["parse_error"]:
+                sys.stderr.write(
+                    f"strict: {source} — missing={h['missing']} "
+                    f"parse_error={h['parse_error']}\n"
+                )
+        raise SystemExit(2)
     tagged = _records_with_tags(records)
 
     freq = {}
@@ -402,9 +460,18 @@ def save(args):
     ensure_workspace_manifest()
     reflect_id, path = unique_path(root, f"reflect-{pid}")
 
-    records = load_records("all", start, end)
+    records, health = load_records("all", start, end)
+    if getattr(args, "strict", False) and _health_has_issues(health):
+        for source, h in health.items():
+            if h["missing"] or h["parse_error"]:
+                sys.stderr.write(
+                    f"strict: {source} — missing={h['missing']} "
+                    f"parse_error={h['parse_error']}\n"
+                )
+        raise SystemExit(2)
     snapshot_md, _diffs = _render_snapshot(records, args, start, end)
     tag_summary = _render_tag_summary(records)
+    source_health = _render_source_health(health)
 
     now = local_now()
     body = f"""---
@@ -422,6 +489,10 @@ sources: [idea, dao, daily]
 ## 范围
 
 {start.isoformat()} → {end.isoformat()}
+
+## Source Health
+
+{source_health}
 
 ## Source Snapshot
 
@@ -448,6 +519,14 @@ def _add_period_args(p):
     p.add_argument("--date", help="Anchor date YYYY-MM-DD (default: today, local).")
 
 
+def _add_strict_arg(p):
+    p.add_argument(
+        "--strict", action="store_true",
+        help="Exit non-zero (code 2) if any source root is missing or any "
+             "record fails to parse. Default behaviour is to warn and skip.",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -459,11 +538,13 @@ def main():
 
     p_agg = sub.add_parser("aggregate", help="List records in a period across sources.")
     _add_period_args(p_agg)
+    _add_strict_arg(p_agg)
     p_agg.add_argument("--source", choices=list(SOURCES), default="all")
     p_agg.set_defaults(func=aggregate)
 
     p_tags = sub.add_parser("tags", help="Tag frequencies + co-occurrence.")
     _add_period_args(p_tags)
+    _add_strict_arg(p_tags)
     p_tags.add_argument("--source", choices=list(SOURCES), default="all")
     p_tags.add_argument("--min-count", type=int, default=2,
                         help="Minimum co-occurrence count to report (default 2).")
@@ -478,6 +559,7 @@ def main():
         help="Write a reflection skeleton pre-filled with cross-source snapshot.",
     )
     _add_period_args(p_save)
+    _add_strict_arg(p_save)
     p_save.set_defaults(func=save)
 
     p_doctor = sub.add_parser(
