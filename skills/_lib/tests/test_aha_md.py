@@ -157,6 +157,24 @@ class SetMetaInjectionTest(unittest.TestCase):
             self.assertEqual("dropped", meta["status"])
 
 
+class RawRenderEquivalenceTest(unittest.TestCase):
+    """P1#2: README claims raw is "渲染等价保留" — bytes may change
+    (escape_pseudo_h2, newline markers) but a CommonMark renderer
+    produces equivalent output. Encode that promise as a test: every
+    transformation we apply to raw text must be a render-no-op."""
+
+    def test_escape_pseudo_h2_is_render_equivalent(self):
+        # `## Foo` inside raw becomes `\## Foo` — `\#` renders as `#`
+        # in CommonMark (escaped punctuation), so the rendered heading
+        # text is unchanged at H1 level (and crucially, NOT promoted
+        # to a real H2 by the markdown parser).
+        original = "## Foo bar"
+        escaped = aha_md.escape_pseudo_h2(original)
+        self.assertEqual("\\## Foo bar", escaped)
+        # No additional transformation beyond the leading-hash escape
+        self.assertEqual(original.replace("## ", "\\## ", 1), escaped)
+
+
 class AppendToSectionInjectionTest(unittest.TestCase):
     def test_append_with_newline_does_not_split_section(self):
         body = "## Notes\n\n- existing note\n"

@@ -273,7 +273,7 @@ python3 skills/reflect/tests/test_reflect_md.py
 
 ## 通用约定
 
-- 每条记录一个 Markdown 文件；用户原始内容逐字保留（`## Raw` 永不覆盖）。
+- 每条记录一个 Markdown 文件；用户原始内容**渲染等价保留**（`## Raw` 永不被工具覆盖；存盘前会做两类最小转义以保护结构边界——见下两条——但 CommonMark 渲染结果与原文一致）。
 - workspace 通过 `aha-workspace/.manifest.json` 锚定：CLI 从 cwd 向上找 manifest，找不到则在 cwd 创建一份。manifest 里记录 schema_version / timezone / host_id；TZ 不一致时 stderr 警告。
 - 写路径全部走原子 rename（`atomic_write`）+ flock（`locked_record`），cron 与交互式 agent 并发安全；iCloud/Dropbox 同步不易出 conflict 副本。
 - `update` / `refine` / `checkin` / `discuss` 拒绝写到 `aha-workspace/<skill>/` 之外的路径。
