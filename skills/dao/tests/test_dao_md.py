@@ -202,6 +202,40 @@ class DaoMarkdownCliTest(unittest.TestCase):
             # Confirm output reports current count without bumping
             self.assertTrue(scan.stdout.startswith("0\t"))
 
+    def test_refine_discuss_update_bump_review_count(self):
+        """P1#5: dao/SKILL.md:146 promises refine/discuss/update-with-note
+        each count as an engagement — they stamp last_reviewed_at and
+        bump review_count so scan --mode least-reviewed moves on to
+        actually-cold records. Field-only updates do not."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "seed", cwd=tmp)
+            path = Path(captured.stdout.strip())
+            text0 = path.read_text(encoding="utf-8")
+            self.assertIn("review_count: 0", text0)
+            self.assertIn("last_reviewed_at:\n", text0)
+
+            run_cli("refine", str(path), "--text", "refined v1", cwd=tmp)
+            text1 = path.read_text(encoding="utf-8")
+            self.assertIn("review_count: 1", text1)
+            self.assertRegex(text1, r"last_reviewed_at: \d{4}-\d{2}-\d{2}T")
+
+            run_cli(
+                "discuss", str(path),
+                "--topic", "t", "--conversation", "c", "--takeaway", "k",
+                cwd=tmp,
+            )
+            text2 = path.read_text(encoding="utf-8")
+            self.assertIn("review_count: 2", text2)
+
+            run_cli("update", str(path), "--note", "a real note", cwd=tmp)
+            text3 = path.read_text(encoding="utf-8")
+            self.assertIn("review_count: 3", text3)
+
+            # Field-only update (no --note) should NOT bump review_count
+            run_cli("update", str(path), "--category", "life", cwd=tmp)
+            text4 = path.read_text(encoding="utf-8")
+            self.assertIn("review_count: 3", text4)
+
     def test_capture_escapes_pseudo_h2_in_raw_text(self):
         """Raw text containing a line `## Notes` must not collide with the
         real ## Notes section; subsequent update --note writes to the real

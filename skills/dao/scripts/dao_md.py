@@ -157,6 +157,9 @@ def _do_refine(path, args):
 
     set_meta(lines, "refine_count", str(new_count))
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
+    # refine is an active engagement with the record — stamp it so
+    # scan --mode least-reviewed will not keep re-surfacing it.
+    _bump_review(lines, meta, now)
 
     save_record(path, lines, body)
 
@@ -220,6 +223,9 @@ created_at: {timestamp}
 
     set_meta(lines, "discussion_count", str(new_count))
     set_meta(lines, "updated_at", timestamp)
+    # discuss is an active engagement with the record — stamp it so
+    # scan --mode least-reviewed will not keep re-surfacing it.
+    _bump_review(lines, meta, now)
 
     save_record(path, lines, body)
     return session_path
@@ -293,7 +299,7 @@ def update(args):
 
 
 def _do_update(path, args):
-    lines, _meta, body = load_record(path)
+    lines, meta, body = load_record(path)
     now = local_now()
 
     if args.category is not None:
@@ -306,8 +312,25 @@ def _do_update(path, args):
 
     if args.note:
         body = append_to_section(body, NOTES_HEADING, f"- {now.date().isoformat()}: {args.note}")
+        # Engagement: appending a note counts as review touch.
+        # Field-only edits (category / tags / priority) do not.
+        _bump_review(lines, meta, now)
 
     save_record(path, lines, body)
+
+
+def _bump_review(lines, meta, now):
+    """Stamp `last_reviewed_at` to now and increment `review_count` by one.
+
+    Called from refine / discuss / update --note: each is an active
+    engagement with the record, and dao/SKILL.md:146 promises these
+    move the record out of `scan --mode least-reviewed`'s line. Without
+    this stamp, the same recently-engaged record keeps getting surfaced
+    on the next cron run.
+    """
+    new_count = int_meta(meta, "review_count") + 1
+    set_meta(lines, "review_count", str(new_count))
+    set_meta(lines, "last_reviewed_at", now.isoformat(timespec="seconds"))
 
 
 def main():
