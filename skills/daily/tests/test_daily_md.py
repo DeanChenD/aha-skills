@@ -465,6 +465,10 @@ class DailyMarkdownCliTest(unittest.TestCase):
 
             text = out_path.read_text(encoding="utf-8")
             self.assertIn("schema_version: 1", text)
+            # P2#2: review files declare type: review so a script seeing
+            # a review file mixed in with reflections can tell them apart
+            # despite sharing the 模式与启示 / 下阶段意图 headings.
+            self.assertIn("type: review", text)
             self.assertIn("period: week", text)
             self.assertIn("### Tasks touched", text)
             self.assertIn("ship spec", text)

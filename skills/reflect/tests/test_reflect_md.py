@@ -222,6 +222,10 @@ class SaveTest(unittest.TestCase):
 
             text = out_path.read_text(encoding="utf-8")
             self.assertIn("schema_version: 1", text)
+            # P2#2: reflect files declare type: reflect so a script
+            # encountering a mixed pile of review/reflect files can tell
+            # them apart — they share the 模式与启示 / 下阶段意图 headings.
+            self.assertIn("type: reflect", text)
             self.assertIn("period: week", text)
             self.assertIn("### idea (1)", text)
             self.assertIn("### dao (1)", text)

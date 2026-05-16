@@ -742,6 +742,7 @@ def review(args):
     now = local_now()
     body = f"""---
 review_id: {review_id}
+type: review
 schema_version: 1
 period: {args.period}
 range_start: {start.isoformat()}

@@ -481,6 +481,7 @@ def save(args):
     now = local_now()
     body = f"""---
 reflect_id: {reflect_id}
+type: reflect
 schema_version: 1
 period: {args.period}
 range_start: {start.isoformat()}
