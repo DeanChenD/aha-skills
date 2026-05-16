@@ -804,6 +804,47 @@ class UniquePathReservationTest(unittest.TestCase):
                              f"expected {N} files, got {len(on_disk)}")
 
 
+class VerifyUnchangedSinceTest(unittest.TestCase):
+    """P1#11: closes the cross-host gap that fcntl.flock cannot — when
+    NFS / iCloud / Dropbox sync a second host's write between our load
+    and our save, we refuse to overwrite unless --force."""
+
+    def test_passes_when_mtime_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.md"
+            path.write_text("first", encoding="utf-8")
+            mtime = path.stat().st_mtime
+            # Should not raise
+            aha_md.verify_unchanged_since(path, mtime)
+
+    def test_raises_when_mtime_advanced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.md"
+            path.write_text("first", encoding="utf-8")
+            mtime = path.stat().st_mtime
+            # Simulate another host writing after we loaded
+            import os as _os
+            _os.utime(path, (mtime + 10, mtime + 10))
+            with self.assertRaises(SystemExit) as cm:
+                aha_md.verify_unchanged_since(path, mtime)
+            self.assertIn("modified by another writer", str(cm.exception))
+
+    def test_force_bypasses_the_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.md"
+            path.write_text("first", encoding="utf-8")
+            mtime = path.stat().st_mtime
+            import os as _os
+            _os.utime(path, (mtime + 10, mtime + 10))
+            # --force: no raise even though mtime moved
+            aha_md.verify_unchanged_since(path, mtime, force=True)
+
+    def test_missing_path_is_noop(self):
+        # Path that doesn't exist — caller will fail on the subsequent
+        # save anyway; this helper should not also raise.
+        aha_md.verify_unchanged_since(Path("/no/such/file"), 0)
+
+
 class LockedRecordConcurrencyTest(unittest.TestCase):
     """Two threads simultaneously appending to the same daily log file —
     without locking, they race and one entry is silently dropped. With

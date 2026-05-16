@@ -34,6 +34,7 @@ from aha_md import (  # noqa: E402
     slugify,
     split_frontmatter,
     unique_path,
+    verify_unchanged_since,
     workspace_dir,
 )
 
@@ -147,6 +148,7 @@ def update(args):
 
 def _do_update(path, args):
     lines, meta, body = load_record(path)
+    pre_mtime = path.stat().st_mtime
 
     now = local_now()
     if args.status:
@@ -173,6 +175,7 @@ def _do_update(path, args):
     if args.note:
         body = append_to_section(body, "Notes", f"- {now.date().isoformat()}: {args.note}")
 
+    verify_unchanged_since(path, pre_mtime, force=args.force)
     save_record(path, lines, body)
 
 
@@ -280,6 +283,11 @@ def main():
     p_update.add_argument("--review-count", type=int)
     p_update.add_argument("--decision", help="Append an entry to Decision Log.")
     p_update.add_argument("--note", help="Append an entry to Notes.")
+    p_update.add_argument(
+        "--force", action="store_true",
+        help="Skip the cross-host mtime conflict check; overwrite even if "
+             "the file was modified by another writer since this command loaded it.",
+    )
     p_update.set_defaults(func=update)
 
     p_doctor = sub.add_parser(

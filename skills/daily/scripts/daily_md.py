@@ -39,6 +39,7 @@ from aha_md import (  # noqa: E402
     sanitize_single_line,
     schema_version_compatible,
     task_in_period,
+    verify_unchanged_since,
     save_record,
     set_meta,
     slugify,
@@ -288,6 +289,7 @@ def update(args):
 
 def _do_update(path, args):
     lines, meta, body = load_record(path)
+    pre_mtime = path.stat().st_mtime
     now = local_now()
 
     if args.category is not None:
@@ -352,6 +354,7 @@ def _do_update(path, args):
         )
 
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
+    verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
     save_record(path, lines, body)
 
 
@@ -365,6 +368,7 @@ def checkin(args):
 
 def _do_checkin(path, args):
     lines, meta, body = load_record(path)
+    pre_mtime = path.stat().st_mtime
     now = local_now()
 
     parent_id = meta.get("id") or path.stem
@@ -416,6 +420,7 @@ def _do_checkin(path, args):
     set_meta(lines, "checkin_count", str(new_count))
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
 
+    verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
     save_record(path, lines, body)
     return checkin_path
 
@@ -789,6 +794,10 @@ def main():
     p_update.add_argument("--tags", help="Comma-separated tags (replaces).")
     p_update.add_argument("--difficulty", help="Append a line to ## Difficulty Log.")
     p_update.add_argument("--note", help="Append a line to ## Notes.")
+    p_update.add_argument(
+        "--force", action="store_true",
+        help="Skip cross-host mtime conflict check.",
+    )
     p_update.set_defaults(func=update)
 
     p_checkin = sub.add_parser(
@@ -800,6 +809,10 @@ def main():
     add_text_input_args(p_checkin, "takeaway", required=True)
     add_text_input_args(p_checkin, "difficulty", required=False, help_text="Optional surfaced difficulty (also appended to Difficulty Log).")
     add_text_input_args(p_checkin, "next-step", required=False, help_text="Optional next concrete step.")
+    p_checkin.add_argument(
+        "--force", action="store_true",
+        help="Skip cross-host mtime conflict check.",
+    )
     p_checkin.set_defaults(func=checkin)
 
     p_log = sub.add_parser("log", help="Append a daily log entry to today's (or --date) log file.")

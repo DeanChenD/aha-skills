@@ -989,6 +989,42 @@ def save_record(path, lines, body):
     )
 
 
+def verify_unchanged_since(path, expected_mtime, *, force=False):
+    """Refuse to save a record that has been modified by another writer
+    since we loaded it.
+
+    ``locked_record`` serializes writes on the local host via fcntl.flock,
+    but flock does NOT propagate across NFS / iCloud / Dropbox — two
+    hosts sharing the same workspace can both pass the lock and both
+    write. Capturing the file's mtime at load time and comparing it
+    immediately before save closes that gap for the common case (the
+    second host sees a newer mtime than the one it read with).
+
+    Resolution is per-second on most filesystems, so two writes within
+    the same second by different hosts are still indistinguishable —
+    this is a best-effort guard, not a distributed lock.
+
+    Raises ``SystemExit`` when the mtime has moved. ``force=True``
+    suppresses the check; callers use it after surfacing the conflict
+    to the operator (e.g. ``update --force``).
+    """
+    if force:
+        return
+    try:
+        current = Path(path).stat().st_mtime
+    except OSError:
+        return
+    if abs(current - expected_mtime) > 0.5:
+        raise SystemExit(
+            f"Refusing to save: {path} was modified by another writer "
+            f"since this command loaded it.\n"
+            f"  loaded mtime: {expected_mtime}\n"
+            f"  current mtime: {current}\n"
+            f"Re-run the command (it will pick up the new state), or "
+            f"pass --force if you intend to overwrite."
+        )
+
+
 @contextmanager
 def locked_record(path):
     """Acquire an exclusive flock for the duration of a read-modify-write

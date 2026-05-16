@@ -342,6 +342,18 @@ class DaoMarkdownCliTest(unittest.TestCase):
             # And FAKE REFINED is not its own heading line (collapsed into the note)
             self.assertNotIn("\n## Refined 提炼沉淀\nFAKE REFINED", text)
 
+    def test_update_force_flag_is_accepted(self):
+        """P1#11 e2e: --force is wired through to the cross-host conflict
+        check. The actual mtime conflict path is covered by unit tests
+        in aha_md (the cross-process race requires manipulating mtime
+        mid-subprocess, which we keep at the helper level)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "seed", cwd=tmp)
+            path = Path(captured.stdout.strip())
+            # Should not raise even though we have no real conflict
+            run_cli("update", str(path), "--note", "forced", "--force", cwd=tmp)
+            self.assertIn("forced", path.read_text(encoding="utf-8"))
+
     def test_discuss_does_not_clobber_orphan_session_file(self):
         """P1#12: if an orphan session-001 sits in the sessions/ dir
         (e.g. a prior crash, or a manual file the user created), the

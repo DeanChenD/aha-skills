@@ -39,6 +39,7 @@ from aha_md import (  # noqa: E402
     split_frontmatter,
     title_from_body,
     unique_path,
+    verify_unchanged_since,
     workspace_dir,
 )
 
@@ -145,6 +146,7 @@ def refine(args):
 
 def _do_refine(path, args):
     lines, meta, body = load_record(path)
+    pre_mtime = path.stat().st_mtime
     now = local_now()
 
     old_count = int_meta(meta, "refine_count")
@@ -164,6 +166,7 @@ def _do_refine(path, args):
     # scan --mode least-reviewed will not keep re-surfacing it.
     _bump_review(lines, meta, now)
 
+    verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
     save_record(path, lines, body)
 
 
@@ -177,6 +180,7 @@ def discuss(args):
 
 def _do_discuss(path, args):
     lines, meta, body = load_record(path)
+    pre_mtime = path.stat().st_mtime
     now = local_now()
 
     parent_id = meta.get("id") or path.stem
@@ -233,6 +237,7 @@ created_at: {timestamp}
     # scan --mode least-reviewed will not keep re-surfacing it.
     _bump_review(lines, meta, now)
 
+    verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
     save_record(path, lines, body)
     return session_path
 
@@ -310,6 +315,7 @@ def update(args):
 
 def _do_update(path, args):
     lines, meta, body = load_record(path)
+    pre_mtime = path.stat().st_mtime
     now = local_now()
 
     if args.category is not None:
@@ -326,6 +332,7 @@ def _do_update(path, args):
         # Field-only edits (category / tags / priority) do not.
         _bump_review(lines, meta, now)
 
+    verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
     save_record(path, lines, body)
 
 
@@ -364,6 +371,10 @@ def main():
     )
     p_refine.add_argument("file", help="Markdown dao file to refine.")
     add_text_input_args(p_refine, "text", required=True, help_text="New refined text.")
+    p_refine.add_argument(
+        "--force", action="store_true",
+        help="Skip cross-host mtime conflict check.",
+    )
     p_refine.set_defaults(func=refine)
 
     p_discuss = sub.add_parser(
@@ -374,6 +385,10 @@ def main():
     add_text_input_args(p_discuss, "topic", required=True, help_text="Discussion topic / prompt.")
     add_text_input_args(p_discuss, "conversation", required=True, help_text="Full conversation text.")
     add_text_input_args(p_discuss, "takeaway", required=True, help_text="1-3 sentence takeaway written back to main file.")
+    p_discuss.add_argument(
+        "--force", action="store_true",
+        help="Skip cross-host mtime conflict check.",
+    )
     p_discuss.set_defaults(func=discuss)
 
     p_scan = sub.add_parser(
@@ -404,6 +419,10 @@ def main():
     p_update.add_argument("--tags", help="Comma-separated tags.")
     p_update.add_argument("--priority", choices=["low", "medium", "high"])
     p_update.add_argument("--note", help="Append an entry to ## Notes.")
+    p_update.add_argument(
+        "--force", action="store_true",
+        help="Skip cross-host mtime conflict check.",
+    )
     p_update.set_defaults(func=update)
 
     p_doctor = sub.add_parser(
