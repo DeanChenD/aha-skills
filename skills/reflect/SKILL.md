@@ -1,6 +1,6 @@
 ---
 name: reflect
-description: Use when the user invokes /reflect or asks to look across idea + dao + daily over a window (week/month/day) for patterns — recurring tags, repeated difficulties, an insight that touches an in-flight idea, etc. Distinguish from `daily.review` (single-source: this week's tasks + logs) — reflect is the cross-source pattern-mining layer that sits above the other three.
+description: Use when the user invokes /reflect or asks to look across idea + dao + daily over a window (week/month/day) for patterns — recurring tags, repeated difficulties, an insight that touches an in-flight idea, etc. Distinguish from `daily.review` (single-source: this week's tasks + logs) — reflect is the cross-source pattern-mining layer that sits above the other three. Cross-source synthesis only — if the user wants to *change* a record based on a pattern, route them back to the originating skill (idea/dao/daily).
 version: 0.2.0
 ---
 
@@ -198,3 +198,17 @@ After running save:
 - Offer one concrete next step: discuss a specific pattern, look at the difficulty log entries, or schedule the next reflect.
 
 The reflection Markdown file is the source of truth. The chat is where the synthesis actually happens.
+
+## Related skills
+
+reflect sits *above* idea / dao / daily — it reads from all three but writes to its own workspace and never mutates the source records. Pick reflect only when the user wants cross-source synthesis:
+
+- **reflect**: "what's recurring this week", "看看这一个月", "几个 dao 在讲同一件事"... — the work is *pattern mining* + *synthesis*. Read-only against the source skills.
+- **[idea](../idea/SKILL.md)** / **[dao](../dao/SKILL.md)** / **[daily](../daily/SKILL.md)**: any single-source capture or update belongs in the originating skill. Don't use reflect just because the user said "look at my notes."
+
+**Ambiguity examples**:
+- "这周回顾一下" → if just within daily (tasks + logs), `daily review`; if cross-source patterns are wanted, **reflect**.
+- "翻翻最近的 dao" → **dao** `scan`, not reflect.
+- "最近 idea / dao / daily 有没有重合的 tag" → **reflect** `tags`.
+
+reflect is read-only; if the user wants to *change* something based on the pattern, route them back to the originating skill (e.g. "want to kill these stale ideas?" → idea update).

@@ -1,6 +1,6 @@
 ---
 name: idea
-description: Use when the user invokes /idea, surfaces an outward-facing thing they might want to do / build / research / decide later (i.e. something to incubate before action), or asks to maintain their idea inbox, continue a stalled idea, or kill one. Distinguish from `dao` (inward realizations, no action expected) and `daily` (today's tasks with deadlines).
+description: Use when the user invokes /idea, surfaces an outward-facing thing they might want to do / build / research / decide later (i.e. something to incubate before action), or asks to maintain their idea inbox, continue a stalled idea, or kill one. Distinguish from `dao` (inward realizations, no action expected) and `daily` (today's tasks with deadlines). For ambiguous routing where the user pivots mid-utterance ("我有个想法...不对，还是 todo"), follow the **last** stated intent, not the first tentative one.
 version: 0.2.0
 ---
 
@@ -176,3 +176,20 @@ After capturing or updating an idea, tell the user:
 - the next action or the specific question you need answered
 
 Keep the interaction short. The Markdown file is the source of truth.
+
+## Related skills
+
+The four aha-skills are deliberately flat — none of them capture on each other's behalf — but the routing decision matters when a user is ambiguous. Disambiguate by the user's intent:
+
+- **idea**: an outward action whose shape isn't decided yet ("we could build X", "research Y", "what if we tried Z"). The work is *exploration*; the artifact is research, a draft plan, or a kill decision.
+- **[dao](../dao/SKILL.md)**: an inward realization or principle ("I悟到了 X", "Y is about boundaries, not energy"). The work is *refinement*; the artifact is a sharpened sentence + an optional multi-turn discussion.
+- **[daily](../daily/SKILL.md)**: a concrete to-do with a deadline ("ship the spec by Friday", "call them tomorrow"), or a freeform log entry ("just got distracted again"). The work is *execution* + *journaling*.
+- **[reflect](../reflect/SKILL.md)**: cross-skill pattern mining over a time window ("look at this week", "what's recurring"). Only after the other three have written records.
+
+**Ambiguity examples**:
+- "我有个想法，想做一个 todo 提醒器" → **idea** (the user said 想法; the todo is the artifact, not the work itself).
+- "明天前帮我做这个" → **daily** (deadline + concrete action).
+- "我想通了一件事" → **dao**.
+- "这周做了什么 / 有什么 pattern" → **reflect**.
+
+If the user pivots mid-utterance ("我有个想法...不对，还是直接当 todo 吧"), follow the **last** stated intent — see the description-line guidance.

@@ -1,6 +1,6 @@
 ---
 name: dao
-description: Use when the user invokes /dao, shares an inward realization or insight they want to sit with rather than act on, asks to refine an existing insight, asks to discuss one philosophically, or asks to resurface past insights. Distinguish from `idea` (outward action) and `daily` (rhythm/tasks). Recognizes Chinese realization phrases like "悟到 / 想通 / 感悟到" as well as English equivalents.
+description: Use when the user invokes /dao, shares an inward realization or insight they want to sit with rather than act on, asks to refine an existing insight, asks to discuss one philosophically, or asks to resurface past insights. Distinguish from `idea` (outward action) and `daily` (rhythm/tasks). Recognizes Chinese realization phrases like "悟到 / 想通 / 感悟到" as well as English equivalents. For ambiguous routing where the user pivots mid-utterance, follow the **last** stated intent — early tentative words are not the routing signal.
 version: 0.2.0
 ---
 
@@ -174,3 +174,21 @@ After capturing, refining, discussing, or scanning:
 - Offer at most one specific next step — no broad "what would you like to do?" prompts.
 
 The Markdown file is the source of truth. The chat is the side channel.
+
+## Related skills
+
+dao is the *inward* counterpart of idea: idea handles outward action (research, build, ship), dao handles realization (philosophy, principles, "I悟到了…"). The four skills are flat — none captures on another's behalf — but pick the right one before triggering:
+
+- **dao**: a realization or principle the user is trying to crystallize. The work is *refinement*; the artifact is a sharpened sentence + an optional discussion session.
+- **[idea](../idea/SKILL.md)**: an outward action whose shape isn't yet decided. The work is *exploration*; the artifact is a plan or kill decision.
+- **[daily](../daily/SKILL.md)**: a concrete to-do with a deadline, or a freeform daily log entry.
+- **[reflect](../reflect/SKILL.md)**: cross-skill pattern mining over a window. Reads dao + idea + daily.
+
+**Ambiguity examples**:
+- "我有个感悟，做事情不要太用力" → **dao**.
+- "我想到一个事情可以试试" → **idea**.
+- "今天聊到一个想法，要记一下" → if the user wants to *do* something, **idea**; if they're naming a principle, **dao**.
+- "翻翻最近的悟" → **dao** scan.
+- "最近几条 dao 有什么共同的" → **reflect** (cross-source pattern, not just within dao).
+
+If the user pivots mid-utterance, follow the **last** stated intent.

@@ -1,6 +1,6 @@
 ---
 name: daily
-description: Use when the user invokes /daily, manages today's rhythm — adding a todo with a deadline, asking what's overdue, postponing with a reason, checking in on a task's progress, logging a free-form moment, or producing a day/week/month review. Distinguish from `idea` (still-incubating outward thoughts, no deadline) and `dao` (inward insights to sit with). Single-source review (this week's tasks + logs) lives here; cross-source pattern mining lives in `reflect`.
+description: Use when the user invokes /daily, manages today's rhythm — adding a todo with a deadline, asking what's overdue, postponing with a reason, checking in on a task's progress, logging a free-form moment, or producing a day/week/month review. Distinguish from `idea` (still-incubating outward thoughts, no deadline) and `dao` (inward insights to sit with). Single-source review (this week's tasks + logs) lives here; cross-source pattern mining lives in `reflect`. For ambiguous routing where the user pivots ("我有个想法...还是当 todo 吧"), follow the **last** stated intent.
 version: 0.2.0
 ---
 
@@ -186,6 +186,23 @@ After every action, tell the user:
 - At most one specific next step ("set status to in_progress and start a timer?" / "want to add a difficulty entry?" / not "what would you like to do?").
 
 The Markdown files are the source of truth. The chat is the side channel.
+
+## Related skills
+
+daily is the *rhythm* counterpart of the inward (dao) and outward (idea) skills. The four skills are flat — none captures on another's behalf — but pick the right one before triggering:
+
+- **daily**: a concrete to-do with a deadline, *or* a freeform daily log entry. The work is *execution* + *journaling*.
+- **[idea](../idea/SKILL.md)**: an outward action whose shape isn't decided yet. Becomes a daily task only when the user names a deadline.
+- **[dao](../dao/SKILL.md)**: an inward realization. Not a task even when the user says "我想..." — the work is *refinement*, not *execution*.
+- **[reflect](../reflect/SKILL.md)**: cross-skill weekly/monthly pattern mining. `daily review` is the same-skill sibling that operates only on daily/.
+
+**Ambiguity examples**:
+- "今天前完成这个" → **daily** (deadline).
+- "我有个想法，明天前实现" → still **daily** (the actionable shape is named).
+- "今天感觉做不进去" → **daily** `log` (freeform).
+- "我悟到一件事，自己做事要 X" → **dao**.
+
+If the user pivots mid-utterance, follow the **last** stated intent.
 
 ## Install note
 
