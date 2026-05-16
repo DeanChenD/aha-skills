@@ -456,6 +456,45 @@ class SchemaVersionCompatibleTest(unittest.TestCase):
         self.assertIn("unparseable", buf.getvalue())
 
 
+class ExtractDifficultyEntriesTest(unittest.TestCase):
+    """P1#9: shared regex + heading collector. Both daily review and
+    reflect aggregation feed through this function; a change to either
+    the heading text or the line format only needs to land here."""
+
+    def _body(self, entries):
+        return "# T\n\n## Difficulty Log 困难记录\n\n" + "".join(
+            f"- {e}\n" for e in entries
+        ) + "\n## Notes\n"
+
+    def test_parses_plain_update_line(self):
+        body = self._body(["2026-05-10: data model still fuzzy"])
+        entries = list(aha_md.extract_difficulty_entries(body))
+        self.assertEqual([("2026-05-10", "data model still fuzzy")], entries)
+
+    def test_parses_checkin_variant(self):
+        body = self._body(["2026-05-10 (check-in 003): stuck on API contract"])
+        entries = list(aha_md.extract_difficulty_entries(body))
+        self.assertEqual([("2026-05-10", "stuck on API contract")], entries)
+
+    def test_handles_colon_in_text(self):
+        body = self._body(["2026-05-10: error: connection refused"])
+        entries = list(aha_md.extract_difficulty_entries(body))
+        self.assertEqual([("2026-05-10", "error: connection refused")], entries)
+
+    def test_skips_malformed_lines(self):
+        body = self._body([
+            "not a real entry",
+            "2026-05-10: real one",
+            "todo: not a difficulty",
+        ])
+        entries = list(aha_md.extract_difficulty_entries(body))
+        self.assertEqual([("2026-05-10", "real one")], entries)
+
+    def test_no_section_yields_nothing(self):
+        body = "# T\n\n## Notes\n\n- something\n"
+        self.assertEqual([], list(aha_md.extract_difficulty_entries(body)))
+
+
 class TaskInPeriodTest(unittest.TestCase):
     """P1#8: period inclusion for tasks is the union of four signals,
     not just updated_at. A task captured before the window with a due

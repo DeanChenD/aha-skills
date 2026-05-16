@@ -12,7 +12,6 @@ Subcommands:
 """
 
 import argparse
-import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -25,6 +24,7 @@ from aha_md import (  # noqa: E402
     check_manifest_consistency,
     ensure_dir,
     ensure_workspace_manifest,
+    extract_difficulty_entries,
     iter_record_paths,
     local_now,
     parse_dt,
@@ -48,9 +48,6 @@ REFLECT_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/reflect/reflections"
 PERIODS = ("day", "week", "month")
 SOURCES = ("idea", "dao", "daily", "all")
 
-DIFFICULTY_LINE_RE = re.compile(
-    r"^- (\d{4}-\d{2}-\d{2})(?: \(check-in [^)]+\))?: (.+)$"
-)
 
 
 def _idea_dir():
@@ -263,19 +260,11 @@ def difficulties(args):
             continue
         if not body:
             continue
-        section = read_section(body, "Difficulty Log 困难记录")
-        if not section:
-            continue
         title = title_from_body(body)
-        for raw_line in section.splitlines():
-            line = raw_line.strip()
-            match = DIFFICULTY_LINE_RE.match(line)
-            if not match:
-                continue
-            d = parse_date_str(match.group(1))
+        for date_str, text in extract_difficulty_entries(body):
+            d = parse_date_str(date_str)
             if not in_range(d, start, end):
                 continue
-            text = match.group(2).strip()
             print("\t".join([
                 d.isoformat(),
                 meta.get("id", ""),
@@ -377,18 +366,12 @@ def _collect_difficulties(start, end):
             continue
         if meta.get("type") and meta.get("type") != "task":
             continue
-        section = read_section(body, "Difficulty Log 困难记录")
-        if not section:
-            continue
         title = title_from_body(body)
-        for raw in section.splitlines():
-            match = DIFFICULTY_LINE_RE.match(raw.strip())
-            if not match:
-                continue
-            d = parse_date_str(match.group(1))
+        for date_str, text in extract_difficulty_entries(body):
+            d = parse_date_str(date_str)
             if not in_range(d, start, end):
                 continue
-            out.append((d, meta.get("id", ""), path, title, match.group(2).strip()))
+            out.append((d, meta.get("id", ""), path, title, text))
     return out
 
 

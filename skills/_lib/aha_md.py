@@ -648,6 +648,41 @@ def check_manifest_consistency():
         pass
 
 
+DIFFICULTY_LOG_HEADING = "Difficulty Log 困难记录"
+
+# `- YYYY-MM-DD: text` from `daily update --difficulty`,
+# `- YYYY-MM-DD (check-in NNN): text` from `daily checkin --difficulty`.
+# Both forms must round-trip to the same (date, text) extraction so
+# reflect/daily review aggregate them uniformly.
+DIFFICULTY_LINE_RE = re.compile(
+    r"^- (\d{4}-\d{2}-\d{2})(?: \(check-in [^)]+\))?: (.+)$"
+)
+
+
+def extract_difficulty_entries(body):
+    """Yield (date_iso_str, text) for each parseable difficulty line in
+    the ``## Difficulty Log 困难记录`` section of ``body``. Lines that
+    don't match the canonical shape (regex above) are skipped.
+
+    Used by both daily review's local snapshot and reflect's cross-source
+    aggregation so a regex tweak only needs to land in one place.
+    """
+    section = ""
+    try:
+        # read_section is defined later in this module; tolerate import
+        # ordering by deferring the lookup.
+        section = read_section(body, DIFFICULTY_LOG_HEADING)
+    except NameError:  # pragma: no cover
+        return
+    if not section:
+        return
+    for raw in section.splitlines():
+        match = DIFFICULTY_LINE_RE.match(raw.strip())
+        if not match:
+            continue
+        yield match.group(1), match.group(2).strip()
+
+
 _ACTIVE_TASK_STATUSES = ("pending", "in_progress", "blocked")
 
 

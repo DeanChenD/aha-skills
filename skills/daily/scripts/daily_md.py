@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 from aha_md import (  # noqa: E402
+    DIFFICULTY_LOG_HEADING,
     UNTRUSTED_CONTENT_BANNER,
     WORKSPACE_DIR_NAME,
     add_text_input_args,
@@ -18,6 +19,7 @@ from aha_md import (  # noqa: E402
     ensure_dir,
     ensure_workspace_manifest,
     escape_pseudo_h2,
+    extract_difficulty_entries,
     format_tags,
     int_meta,
     iter_record_paths,
@@ -49,7 +51,6 @@ from aha_md import (  # noqa: E402
 TASKS_DIR_DISPLAY = f"./{WORKSPACE_DIR_NAME}/daily/tasks"
 
 DESCRIPTION_HEADING = "Description 描述"
-DIFFICULTY_LOG_HEADING = "Difficulty Log 困难记录"
 POSTPONEMENT_LOG_HEADING = "Postponement Log 推迟记录"
 CHECKIN_LOG_HEADING = "Check-in Log 阶段记录"
 NOTES_HEADING = "Notes"
@@ -616,28 +617,17 @@ def scan(args):
         print(line)
 
 
-DIFFICULTY_LINE_RE = re.compile(
-    r"^- (\d{4}-\d{2}-\d{2})(?: \(check-in [^)]+\))?: (.+)$"
-)
-
-
 def _collect_difficulties_in_range(start, end):
     out = []
     for path, meta, body in _load_task_records():
-        section = read_section(body, DIFFICULTY_LOG_HEADING)
-        if not section:
-            continue
         title = title_from_body(body)
-        for raw in section.splitlines():
-            match = DIFFICULTY_LINE_RE.match(raw.strip())
-            if not match:
-                continue
+        for date_str, text in extract_difficulty_entries(body):
             try:
-                d = date.fromisoformat(match.group(1))
+                d = date.fromisoformat(date_str)
             except ValueError:
                 continue
             if start <= d <= end:
-                out.append((d, meta.get("id", ""), path, title, match.group(2).strip()))
+                out.append((d, meta.get("id", ""), path, title, text))
     return out
 
 
