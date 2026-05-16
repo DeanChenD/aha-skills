@@ -201,6 +201,8 @@ python3 skills/reflect/scripts/reflect_md.py save --period week
 python3 skills/reflect/scripts/reflect_md.py save --period week --date 2026-05-07
 ```
 
+> **ISO week 跨年小提示**：`--period week` 用 ISO 8601 编号，所以 2025-12-31 属于 `2026-W01`（含 2026-01-04 的那一周），2023-01-01 属于 `2022-W52`。这是规范行为，不是 bug；归档文件名 / 路径会按 ISO 年份落地。
+
 ## 仓库结构
 
 ```

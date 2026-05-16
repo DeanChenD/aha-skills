@@ -1182,6 +1182,64 @@ class ParseTagsTest(unittest.TestCase):
         self.assertEqual([], aha_md.parse_tags_field('"just a string"'))
 
 
+class PeriodBoundaryTest(unittest.TestCase):
+    """P2#18: ISO week year-boundary and DST transitions are the two
+    surprising cases where a naive period_range/period_id can drift.
+    Pin the behavior down with tests rather than discover it via
+    user-visible bugs at year-end / DST week."""
+
+    def test_iso_week_crossing_year_boundary_2025_2026(self):
+        # 2025-12-31 is a Wednesday. Per ISO 8601 it belongs to
+        # 2026-W01 (the week containing 2026-01-04). Naive impls that
+        # reformat year from anchor.year would emit "2025-W01" — wrong.
+        from datetime import date as _date
+        pid = aha_md.period_id("week", _date(2025, 12, 31))
+        self.assertEqual("2026-W01", pid)
+
+    def test_period_range_week_crosses_year_boundary(self):
+        from datetime import date as _date
+        start, end = aha_md.period_range("week", _date(2025, 12, 31))
+        self.assertEqual(_date(2025, 12, 29), start)  # Monday in 2025
+        self.assertEqual(_date(2026, 1, 4), end)      # Sunday in 2026
+
+    def test_iso_week_dec_30_31_belong_to_next_year(self):
+        # date(2024, 12, 30) is Mon of W01-2025 — verify the same
+        # year-bridge in the other direction.
+        from datetime import date as _date
+        self.assertEqual("2025-W01", aha_md.period_id("week", _date(2024, 12, 30)))
+
+    def test_iso_week_jan_1_can_belong_to_previous_year(self):
+        # 2023-01-01 is a Sunday — last day of 2022-W52. period_id
+        # must return "2022-W52", not "2023-W52" or "2023-W01".
+        from datetime import date as _date
+        self.assertEqual("2022-W52", aha_md.period_id("week", _date(2023, 1, 1)))
+
+    def test_week_range_unaffected_by_dst_spring_forward(self):
+        # US 2026 "spring forward" is Sun 2026-03-08. We operate on
+        # date objects (not datetime), so DST should not collapse or
+        # extend the day count. Anchor on the DST Sunday and expect
+        # exactly Mon..Sun.
+        from datetime import date as _date
+        start, end = aha_md.period_range("week", _date(2026, 3, 8))
+        self.assertEqual(_date(2026, 3, 2), start)
+        self.assertEqual(_date(2026, 3, 8), end)
+        self.assertEqual(6, (end - start).days)
+
+    def test_week_range_unaffected_by_dst_fall_back(self):
+        # US 2026 "fall back" is Sun 2026-11-01.
+        from datetime import date as _date
+        start, end = aha_md.period_range("week", _date(2026, 11, 1))
+        self.assertEqual(_date(2026, 10, 26), start)
+        self.assertEqual(_date(2026, 11, 1), end)
+        self.assertEqual(6, (end - start).days)
+
+    def test_month_range_handles_december_to_january(self):
+        from datetime import date as _date
+        start, end = aha_md.period_range("month", _date(2025, 12, 15))
+        self.assertEqual(_date(2025, 12, 1), start)
+        self.assertEqual(_date(2025, 12, 31), end)
+
+
 class ReadTextOrWarnTest(unittest.TestCase):
     def test_returns_text_for_valid_utf8(self):
         with tempfile.TemporaryDirectory() as tmp:
