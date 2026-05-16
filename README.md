@@ -261,6 +261,19 @@ aha-skills/
   `skills.external_dirs`；同样保留 `_lib/` 同级。`workdir` 设为一个稳定
   父目录，保证 `aha-workspace/` 跨次复用。
 
+## Host 能力矩阵 — `[SILENT]` 协议
+
+cron-prompt 例子里（特别是 `idea/SKILL.md` 末尾、`dao/SKILL.md:150`、`reflect/SKILL.md` 末尾）会让 agent "if nothing needs user attention, return `[SILENT]`"。这是个**host-side** 约定：host 看到回复是字面量 `[SILENT]` 时，应该把这次 run 当无操作处理，不发通知/邮件/IM。
+
+| Host | `[SILENT]` 处理 | 推荐做法 |
+|---|---|---|
+| **Hermes** | 支持。返回 `[SILENT]` 时 cron run 完成但不送 user-facing notification | 直接按 SKILL.md cron prompt 写 |
+| **Claude Code (interactive)** | 不适用——一次只跑一次，输出直接给用户 | cron prompt 段忽略；这套 skill 仍可手动调用 |
+| **手写 cron + shell + curl** | host 端不识别；返回的字符串会原样进 stdout | 在 wrapper script 里 `grep -v '^\[SILENT\]$'` 或解析后 short-circuit notification |
+| **其他** | 取决于实现；如果 host 把 agent 输出当通知正文，那 `[SILENT]` 会变成噪音 | 包一层「empty-output ⇒ skip notification」的中间层 |
+
+降级方案：如果 host 不支持 `[SILENT]`，agent 仍可按 prompt 返回空字符串或一行 `(nothing to surface)`，host 端用关键字过滤。
+
 ## 跑测试
 
 ```bash
