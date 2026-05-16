@@ -15,13 +15,14 @@ daily_md = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(daily_md)
 
 
-def run_cli(*args, cwd=None):
+def run_cli(*args, cwd=None, input_stdin=None):
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         check=True,
         capture_output=True,
         text=True,
         cwd=str(cwd) if cwd is not None else None,
+        input=input_stdin,
     )
 
 
@@ -283,6 +284,25 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertIn("## 20:00 — PM", text)
             # Union order preserved: existing first, then new (deduped)
             self.assertIn('tags: ["mood", "work", "family"]', text)
+
+    def test_log_preserves_leading_indentation_in_text(self):
+        # P2#11: prior code did escape_pseudo_h2(text).strip() on the
+        # log body, which silently ate leading spaces — breaking the
+        # "渲染等价保留" promise for indented code / ASCII art.
+        with tempfile.TemporaryDirectory() as tmp:
+            indented = "    def foo():\n        return 1\n"
+            run_cli(
+                "log",
+                "--text-stdin",
+                "--time", "10:00",
+                "--title", "Code snippet",
+                input_stdin=indented,
+                cwd=tmp,
+            )
+            files = list(expected_logs_dir(tmp).glob("log-*.md"))
+            self.assertEqual(1, len(files))
+            text = files[0].read_text(encoding="utf-8")
+            self.assertIn("    def foo():\n        return 1", text)
 
     def test_scan_overdue_lists_only_overdue_active_tasks(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -243,7 +243,10 @@ def _append_log_entry(body, time_str, title, text):
     body = body.rstrip() + "\n\n"
     safe_time = sanitize_single_line(time_str)
     safe_title = sanitize_single_line(title)
-    body += f"## {safe_time} — {safe_title}\n\n{escape_pseudo_h2(text).strip()}\n"
+    # Preserve leading whitespace so code blocks / ASCII art keep their
+    # indentation. Only normalize trailing newlines so we end on exactly one.
+    safe_text = escape_pseudo_h2(text).rstrip("\n")
+    body += f"## {safe_time} — {safe_title}\n\n{safe_text}\n"
     return body
 
 
