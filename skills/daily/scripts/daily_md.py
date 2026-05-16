@@ -33,6 +33,7 @@ from aha_md import (  # noqa: E402
     period_id,
     period_range,
     read_section,
+    read_text_or_warn,
     render_frontmatter,
     render_untrusted_inline,
     resolve_text_input,
@@ -463,7 +464,9 @@ def _load_task_records():
     ensure_dir(root)
     records = []
     for path in iter_record_paths(root):
-        text = path.read_text(encoding="utf-8")
+        text = read_text_or_warn(path)
+        if text is None:
+            continue
         fm_lines, body = split_frontmatter(text)
         if not fm_lines:
             continue
@@ -481,7 +484,9 @@ def _load_log_records():
     ensure_dir(root)
     records = []
     for path in iter_record_paths(root):
-        text = path.read_text(encoding="utf-8")
+        text = read_text_or_warn(path)
+        if text is None:
+            continue
         fm_lines, body = split_frontmatter(text)
         if not fm_lines:
             continue

@@ -220,7 +220,7 @@ def scan(args):
                     if lines:
                         set_meta(lines, "last_prompted_at", now.isoformat(timespec="seconds"))
                         save_record(path, lines, body)
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 pass
         print(f"{status}\t{updated}\t{next_review}\t{path}")
 

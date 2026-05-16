@@ -274,6 +274,28 @@ class SaveTest(unittest.TestCase):
             self.assertEqual(2, result.returncode)
             self.assertIn("strict", result.stderr)
 
+    def test_non_utf8_file_does_not_abort_aggregate(self):
+        """P2#16: a single non-UTF-8 file in idea/ must NOT crash the
+        aggregate sweep; it should be skipped with a stderr warning and
+        the rest of the records should still be counted."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # One real, valid UTF-8 idea
+            run(IDEA_SCRIPT, "capture", "--text", "real idea", cwd=tmp)
+            # One garbled non-UTF-8 file dropped into the same dir
+            idea_dir = Path(tmp) / "aha-workspace" / "idea" / "idea-md"
+            (idea_dir / "broken.md").write_bytes(
+                b"---\nid: broken\nschema_version: 1\n---\nca\xe9\n"
+            )
+            result = subprocess.run(
+                [sys.executable, str(REFLECT_SCRIPT), "aggregate",
+                 "--period", "month"],
+                capture_output=True, text=True, cwd=tmp, check=True,
+            )
+            # Aggregate completed without crashing.
+            self.assertIn("idea", result.stdout)
+            # Warning surfaced for the broken file.
+            self.assertIn("UnicodeDecodeError", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

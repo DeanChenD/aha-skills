@@ -34,6 +34,7 @@ from aha_md import (  # noqa: E402
     period_id,
     period_range,
     read_section,
+    read_text_or_warn,
     render_untrusted_inline,
     schema_version_compatible,
     split_frontmatter,
@@ -73,10 +74,14 @@ def _reflect_dir():
 
 def _parse_frontmatter_with_body(path):
     """Return (meta_dict, body) or (None, None) when path is not parseable
-    or has a schema_version we cannot interpret with current semantics."""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
+    or has a schema_version we cannot interpret with current semantics.
+
+    Read errors (OSError) and decode errors (UnicodeDecodeError on a non-
+    UTF-8 file) both fold into (None, None) — the caller bumps the
+    parse_error counter and a stderr warning fires from read_text_or_warn.
+    """
+    text = read_text_or_warn(path)
+    if text is None:
         return None, None
     lines, body = split_frontmatter(text)
     if not lines:

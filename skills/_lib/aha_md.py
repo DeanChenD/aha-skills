@@ -143,8 +143,29 @@ def parse_frontmatter_lines(lines):
     return data
 
 
+def read_text_or_warn(path):
+    """Read a file as UTF-8; return text or None on read / decode failure.
+
+    On failure, stderr-warn so the user knows a record was skipped instead
+    of silently dropping it. Used by scan / reflect read paths so a single
+    non-UTF-8 file can't abort the whole sweep.
+    """
+    import sys as _sys
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        print(
+            f"warning: skipping {path}: {type(exc).__name__}: {exc}",
+            file=_sys.stderr,
+        )
+        return None
+
+
 def parse_frontmatter(path):
-    lines, _ = split_frontmatter(Path(path).read_text(encoding="utf-8"))
+    text = read_text_or_warn(path)
+    if text is None:
+        return {}
+    lines, _ = split_frontmatter(text)
     return parse_frontmatter_lines(lines)
 
 

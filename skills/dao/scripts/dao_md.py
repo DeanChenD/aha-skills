@@ -28,6 +28,7 @@ from aha_md import (  # noqa: E402
     parse_frontmatter_lines,
     parse_tags_field,
     read_section,
+    read_text_or_warn,
     render_frontmatter,
     replace_section,
     resolve_text_input,
@@ -256,7 +257,9 @@ def scan(args):
 
     candidates = []
     for path in iter_record_paths(root):
-        text = path.read_text(encoding="utf-8")
+        text = read_text_or_warn(path)
+        if text is None:
+            continue
         fm_lines, body = split_frontmatter(text)
         if not fm_lines:
             continue

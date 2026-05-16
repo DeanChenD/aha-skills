@@ -1182,5 +1182,39 @@ class ParseTagsTest(unittest.TestCase):
         self.assertEqual([], aha_md.parse_tags_field('"just a string"'))
 
 
+class ReadTextOrWarnTest(unittest.TestCase):
+    def test_returns_text_for_valid_utf8(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "ok.md"
+            p.write_text("hello 你好\n", encoding="utf-8")
+            self.assertEqual("hello 你好\n", aha_md.read_text_or_warn(p))
+
+    def test_returns_none_and_warns_on_non_utf8(self):
+        # P2#16: a single non-UTF-8 file inside a workspace must NOT
+        # abort the entire scan/reflect sweep — it should be skipped
+        # with a stderr warning.
+        import io as _io
+        from contextlib import redirect_stderr
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "latin1.md"
+            p.write_bytes(b"---\nid: x\n---\nca\xe9 broken\n")
+            buf = _io.StringIO()
+            with redirect_stderr(buf):
+                result = aha_md.read_text_or_warn(p)
+            self.assertIsNone(result)
+            self.assertIn("skipping", buf.getvalue())
+            self.assertIn("UnicodeDecodeError", buf.getvalue())
+
+    def test_returns_none_and_warns_on_missing_file(self):
+        import io as _io
+        from contextlib import redirect_stderr
+        with tempfile.TemporaryDirectory() as tmp:
+            buf = _io.StringIO()
+            with redirect_stderr(buf):
+                result = aha_md.read_text_or_warn(Path(tmp) / "nope.md")
+            self.assertIsNone(result)
+            self.assertIn("skipping", buf.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
