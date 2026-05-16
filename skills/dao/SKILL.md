@@ -39,6 +39,7 @@ python3 <skill-dir>/scripts/dao_md.py discuss ./aha-workspace/dao/dao-md/<file>.
 
 python3 <skill-dir>/scripts/dao_md.py scan --mode random --limit 3
 python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.md --note "<context>"
+printf '%s' "$CTX" | python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.md --context-stdin
 ```
 
 ## Markdown Shape
@@ -90,7 +91,7 @@ When the user shares an insight ("我刚刚悟到..." / "感觉..." / "想明白
 
 1. Run `capture --text "<exact user text>"` to create the file. Preserve the user's wording verbatim in `## Raw`.
 2. Unless the user explicitly says "先放着" / "暂时不用整理", immediately call `refine` once to produce the first `## Refined` version. Make it tighter and clearer than the raw text — but do not editorialize, add new claims, or moralize.
-3. Optionally fill `## Context` (via `update --note` or by editing the section) if the user mentioned the trigger.
+3. Optionally fill `## Context` via `update --context` (or `--context-stdin` / `--context-file`) if the user mentioned the trigger. **Do not** edit the `## Context` section by hand or via `Write` — `update --context` is the only sanctioned write path; direct edits violate convention 3 (CLI as the write boundary).
 4. If the insight is clearly philosophical and the user seems open to discussion, offer one specific angle worth exploring (do not start the discussion automatically).
 
 Tagging guidance: pick 1-3 short tags and one `primary_category` (e.g. `life`, `work`, `relationship`, `philosophy`, `craft`). Keep the vocabulary stable across captures so `scan --tag` stays useful.

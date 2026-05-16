@@ -329,6 +329,11 @@ def _do_update(path, args):
         # Field-only edits (category / tags / priority) do not.
         _bump_review(lines, meta, now)
 
+    context_text = resolve_text_input(args, "context")
+    if context_text:
+        body = replace_section(body, CONTEXT_HEADING, context_text.strip())
+        _bump_review(lines, meta, now)
+
     verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
     save_record(path, lines, body)
 
@@ -416,6 +421,12 @@ def main():
     p_update.add_argument("--tags", help="Comma-separated tags.")
     p_update.add_argument("--priority", choices=["low", "medium", "high"])
     p_update.add_argument("--note", help="Append an entry to ## Notes.")
+    add_text_input_args(
+        p_update,
+        "context",
+        required=False,
+        help_text="Replace ## Context 触发情境 with this text (when / where / why this insight came up).",
+    )
     p_update.add_argument(
         "--force", action="store_true",
         help="Skip cross-host mtime conflict check.",

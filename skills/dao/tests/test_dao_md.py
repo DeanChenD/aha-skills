@@ -15,13 +15,14 @@ dao_md = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(dao_md)
 
 
-def run_cli(*args, cwd=None):
+def run_cli(*args, cwd=None, input_stdin=None):
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         check=True,
         capture_output=True,
         text=True,
         cwd=str(cwd) if cwd is not None else None,
+        input=input_stdin,
     )
 
 
@@ -205,6 +206,52 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("primary_category: philosophy", text)
             self.assertIn("revisited today", text)
             self.assertIn("## Notes", text)
+
+    def test_update_context_replaces_section_and_bumps_review(self):
+        # R3#4: ## Context 触发情境 must be writable via the CLI (not by
+        # hand-editing the section). update --context replaces the section
+        # idempotently and counts as a real engagement, so review_count
+        # bumps just like --note does.
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "raw insight", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            run_cli(
+                "update", str(path), "--context", "After yesterday's call with X.",
+                cwd=tmp,
+            )
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("## Context 触发情境", text)
+            self.assertIn("After yesterday's call with X.", text)
+            self.assertIn("review_count: 1", text)
+
+            # Replace, not append: a second --context overrides the first.
+            run_cli(
+                "update", str(path), "--context", "Reinterpreted after sleep.",
+                cwd=tmp,
+            )
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("Reinterpreted after sleep.", text)
+            self.assertNotIn("After yesterday's call with X.", text)
+            self.assertIn("review_count: 2", text)
+
+    def test_update_context_via_stdin(self):
+        # R3#4: --context-stdin pipes raw text without going through the
+        # shell, mirroring capture / refine. SKILL.md's storage block
+        # advertises this entry; LLMs assembling bash for free-form context
+        # text must use it instead of inlining.
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "raw insight", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            run_cli(
+                "update", str(path), "--context-stdin",
+                cwd=tmp,
+                input_stdin="$(whoami) — happened to come up in chat.",
+            )
+            text = path.read_text(encoding="utf-8")
+            # Verbatim, not shell-evaluated.
+            self.assertIn("$(whoami) — happened to come up in chat.", text)
 
     def test_scan_peek_does_not_mutate_review_count(self):
         """P1#8: --peek surfaces dao records without bumping review_count or
