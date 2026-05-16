@@ -295,9 +295,20 @@ def _do_update(path, args):
         set_meta(lines, "priority", args.priority)
 
     if args.status:
+        old_status = meta.get("status", "")
         set_meta(lines, "status", args.status)
         if args.status == "done":
-            set_meta(lines, "completed_at", now.isoformat(timespec="seconds"))
+            # Only stamp completed_at on the *transition* to done. A
+            # repeated `--status done` (e.g. a re-run from cron) must
+            # preserve the original completion time, not overwrite it.
+            if old_status != "done":
+                set_meta(lines, "completed_at", now.isoformat(timespec="seconds"))
+        else:
+            # Reopening (done → pending / in_progress / blocked / dropped)
+            # clears completed_at so period inclusion treats the task as
+            # active again.
+            if old_status == "done":
+                set_meta(lines, "completed_at", "")
 
     if args.due is not None:
         new_due_iso = parse_due(args.due) if args.due else ""

@@ -79,6 +79,44 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertIn("status: done", text)
             self.assertRegex(text, r"completed_at: \d{4}-\d{2}-\d{2}T")
 
+    def test_completed_at_preserves_original_and_clears_on_reopen(self):
+        """P1#15: completed_at semantics:
+        - first --status done stamps it;
+        - repeating --status done preserves the original stamp
+          (so a cron re-run doesn't masquerade as new completion);
+        - reopening (done → pending) clears it so period inclusion
+          treats the task as active again.
+        """
+        import time
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("task", "--text", "thing", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            # Initial done: stamp set
+            run_cli("update", str(path), "--status", "done", cwd=tmp)
+            t1 = next(
+                ln for ln in path.read_text(encoding="utf-8").splitlines()
+                if ln.startswith("completed_at:")
+            )
+            self.assertNotEqual("completed_at:", t1)
+
+            # Repeat done: stamp unchanged
+            time.sleep(1.1)  # ensure a different now()
+            run_cli("update", str(path), "--status", "done", cwd=tmp)
+            t2 = next(
+                ln for ln in path.read_text(encoding="utf-8").splitlines()
+                if ln.startswith("completed_at:")
+            )
+            self.assertEqual(t1, t2, "completed_at must not move on repeat --status done")
+
+            # Reopen → cleared
+            run_cli("update", str(path), "--status", "pending", cwd=tmp)
+            t3 = next(
+                ln for ln in path.read_text(encoding="utf-8").splitlines()
+                if ln.startswith("completed_at:")
+            )
+            self.assertEqual("completed_at:", t3)
+
     def test_update_due_with_reason_logs_postponement_only_when_reason_given(self):
         with tempfile.TemporaryDirectory() as tmp:
             captured = run_cli(

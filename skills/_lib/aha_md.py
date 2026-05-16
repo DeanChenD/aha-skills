@@ -280,7 +280,11 @@ def set_meta(lines, key, value):
     ``parse_frontmatter_lines`` is last-key-wins while ``set_meta`` was
     first-key-only — update could never overwrite an injected duplicate.
     """
-    rendered = f"{key}: {sanitize_single_line(value)}"
+    sanitized = sanitize_single_line(value) if value is not None else ""
+    # Match render_frontmatter: empty value renders as `key:` (no
+    # trailing space), so a cleared completed_at and a freshly-captured
+    # one are byte-identical.
+    rendered = f"{key}: {sanitized}" if sanitized else f"{key}:"
     prefix = f"{key}:"
     first = None
     keep = []

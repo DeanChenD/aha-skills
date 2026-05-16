@@ -131,8 +131,11 @@ class IdeaMarkdownCliTest(unittest.TestCase):
 
             text = path.read_text(encoding="utf-8")
             self.assertIn("status: planning", text)
-            self.assertIn("next_review_at: ", text)
-            self.assertIn("last_prompted_at: ", text)
+            # Cleared next_review_at renders as `key:` (no trailing space),
+            # matching the byte-shape of a freshly-captured empty field
+            # (P1#15 unified set_meta with render_frontmatter).
+            self.assertIn("\nnext_review_at:\n", text)
+            self.assertRegex(text, r"last_prompted_at: \d{4}-\d{2}-\d{2}T")
             self.assertIn("review_count: 1", text)
             self.assertIn("Ready for a concrete plan.", text)
             self.assertIn("CLI update works.", text)
