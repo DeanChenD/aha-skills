@@ -207,8 +207,12 @@ def scan(args):
         if due_for_review or (stale and next_review_at is None):
             rows.append((path, status or "unknown", meta.get("updated_at", ""), meta.get("next_review_at", "")))
 
+    # P1#16: scan defaults to read-only. Scheduler (cron) opts into the
+    # last_prompted_at mark explicitly with --mark-prompted, so a curious
+    # `scan` from the terminal never burns the cron cooldown.
+    should_mark = args.mark_prompted and not args.peek
     for path, status, updated, next_review in rows:
-        if not args.peek:
+        if should_mark:
             # Mark this idea as prompted now, so the next scan within
             # cooldown will skip it. Lock so a parallel update doesn't lose
             # writes against this surface mark.
@@ -251,9 +255,15 @@ def main():
              "the same idea every run.",
     )
     p_scan.add_argument(
+        "--mark-prompted", action="store_true",
+        help="Stamp last_prompted_at on each surfaced idea. Default OFF —"
+             " scheduler / cron must opt in so an interactive `scan` doesn't"
+             " accidentally burn the cron cooldown.",
+    )
+    p_scan.add_argument(
         "--peek", action="store_true",
-        help="Surface candidates without updating last_prompted_at. "
-             "Use when a human is browsing (so cron's cooldown isn't burned).",
+        help="(Deprecated; scan is read-only by default. Kept as a no-op"
+             " override that forces read-only even if --mark-prompted is set.)",
     )
     p_scan.set_defaults(func=scan)
 

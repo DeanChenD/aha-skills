@@ -149,7 +149,7 @@ For a scheduled agent run, use the skill as a triage loop:
 Example prompt for a scheduler:
 
 ```text
-Use the idea skill. Run `scan --stale-days 7` (default cooldown skips ideas surfaced within the last 24h, preventing re-pings). For each due idea, choose the next smallest useful action. Update the Markdown file with status, next_review_at, notes, and decision log. Only message me when you need an answer or there is a concrete plan/kill recommendation. If I'm browsing interactively, use `--peek` so cron's cooldown isn't burned.
+Use the idea skill. Run `scan --stale-days 7 --mark-prompted` (scan is read-only by default; cron must opt in to the last_prompted_at stamp explicitly. The 24h cooldown then skips ideas surfaced within the last day, preventing re-pings). For each due idea, choose the next smallest useful action. Update the Markdown file with status, next_review_at, notes, and decision log. Only message me when you need an answer or there is a concrete plan/kill recommendation. Interactive `scan` (no --mark-prompted) won't burn the cron cooldown.
 ```
 
 **Install note** — `scripts/idea_md.py` imports from a sibling `_lib/aha_md.py` via `sys.path.insert(0, .../skills/_lib)`. Install the *whole* `skills/` parent directory (or symlink `_lib/` alongside `idea/`); a bare `idea/` install with no `_lib/` peer fails on first import. See [README — 安装到 host](../../README.md#安装到-host).

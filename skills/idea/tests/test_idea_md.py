@@ -159,9 +159,10 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertIn("researching", scan.stdout)
             self.assertIn(str(path), scan.stdout)
 
-    def test_scan_default_marks_last_prompted_at_then_cooldown_skips(self):
-        """P1#8: scan default marks last_prompted_at; subsequent scan within
-        the cooldown window must skip the same idea (prevents cron spam)."""
+    def test_scan_with_mark_prompted_then_cooldown_skips(self):
+        """P1#16: scan is read-only by default; the scheduler opts into
+        last_prompted_at stamping with --mark-prompted. Subsequent scan
+        within the cooldown window then skips the same idea."""
         with tempfile.TemporaryDirectory() as tmp:
             run_cli(
                 "capture", "--text", "Cron should not spam this",
@@ -169,23 +170,44 @@ class IdeaMarkdownCliTest(unittest.TestCase):
                 "--next-review-at", "2000-01-01",
                 cwd=tmp,
             )
-            # First scan surfaces it AND marks last_prompted_at = now
-            scan1 = run_cli("scan", "--stale-days", "7", cwd=tmp)
+            # Cron-style scan: explicit --mark-prompted marks last_prompted_at = now
+            scan1 = run_cli("scan", "--stale-days", "7", "--mark-prompted", cwd=tmp)
             self.assertIn("researching", scan1.stdout)
 
-            # Second scan within cooldown skips the idea
-            scan2 = run_cli("scan", "--stale-days", "7", cwd=tmp)
+            # Second scan with mark within cooldown skips the idea
+            scan2 = run_cli("scan", "--stale-days", "7", "--mark-prompted", cwd=tmp)
             self.assertEqual("", scan2.stdout.strip())
 
-            # --peek surfaces the idea regardless (a human is browsing)
+            # Read-only default surfaces the idea regardless (a human is browsing)
             scan3 = run_cli(
-                "scan", "--stale-days", "7", "--peek", "--cooldown-hours", "0",
+                "scan", "--stale-days", "7", "--cooldown-hours", "0",
                 cwd=tmp,
             )
             self.assertIn("researching", scan3.stdout)
 
+    def test_scan_default_is_readonly(self):
+        """P1#16: by default scan does NOT stamp last_prompted_at, so a
+        curious terminal `scan` doesn't burn cron's cooldown."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli(
+                "capture", "--text", "Default-readonly target",
+                "--status", "researching",
+                "--next-review-at", "2000-01-01",
+                cwd=tmp,
+            )
+            path = Path(captured.stdout.strip())
+
+            scan = run_cli("scan", "--stale-days", "7", cwd=tmp)
+            self.assertIn("researching", scan.stdout)
+
+            text = path.read_text(encoding="utf-8")
+            empty_lines = [
+                ln for ln in text.splitlines() if ln.startswith("last_prompted_at:")
+            ]
+            self.assertEqual(["last_prompted_at:"], empty_lines)
+
     def test_scan_peek_does_not_mark_last_prompted_at(self):
-        """--peek surfaces without writing last_prompted_at."""
+        """--peek (deprecated) still forces read-only even if --mark-prompted is set."""
         with tempfile.TemporaryDirectory() as tmp:
             captured = run_cli(
                 "capture", "--text", "Peek-only target",
@@ -195,9 +217,9 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             )
             path = Path(captured.stdout.strip())
 
-            # Peek scan
+            # Peek scan overrides --mark-prompted: still read-only
             scan = run_cli(
-                "scan", "--stale-days", "7", "--peek", cwd=tmp,
+                "scan", "--stale-days", "7", "--peek", "--mark-prompted", cwd=tmp,
             )
             self.assertIn("researching", scan.stdout)
 

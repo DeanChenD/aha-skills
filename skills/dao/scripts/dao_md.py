@@ -275,12 +275,14 @@ def scan(args):
     now = local_now()
     timestamp = now.isoformat(timespec="seconds")
 
+    # P1#16: scan defaults to read-only. Scheduler (cron) opts into the
+    # review_count bump explicitly with --mark-reviewed, so an
+    # interactive `scan` from the terminal doesn't masquerade as a real
+    # re-engagement.
+    should_mark = args.mark_reviewed and not args.peek
     for path, meta, body in selected:
         title = title_from_body(body)
-        if args.peek:
-            # Surface only — do not mutate review_count / last_reviewed_at.
-            # Use this mode from a scheduler that is just looking, not
-            # representing an actual user re-engagement.
+        if not should_mark:
             review_count = int_meta(meta, "review_count")
         else:
             with locked_record(path):
@@ -378,11 +380,17 @@ def main():
     p_scan.add_argument("--category", help="Filter by primary_category.")
     p_scan.add_argument("--limit", type=int, default=3)
     p_scan.add_argument(
+        "--mark-reviewed",
+        action="store_true",
+        help="Bump review_count and stamp last_reviewed_at on each surfaced "
+             "record. Default OFF — scheduler / cron must opt in so an "
+             "interactive `scan` doesn't masquerade as a real re-engagement.",
+    )
+    p_scan.add_argument(
         "--peek",
         action="store_true",
-        help="Surface candidates without bumping review_count / last_reviewed_at. "
-             "Use from a scheduler so cron pings don't masquerade as user reviews "
-             "(--mode least-reviewed otherwise drifts toward 'least cron-touched').",
+        help="(Deprecated; scan is read-only by default. Kept as a no-op "
+             "override that forces read-only even if --mark-reviewed is set.)",
     )
     p_scan.set_defaults(func=scan)
 

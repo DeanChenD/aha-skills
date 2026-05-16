@@ -137,12 +137,17 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("Distinguish fear from instinct.", main_text)
             self.assertIn("../sessions/", main_text)
 
-    def test_scan_returns_at_most_limit_and_increments_review_count(self):
+    def test_scan_with_mark_reviewed_bumps_count(self):
+        """P1#16: scan is read-only by default; the scheduler opts into
+        review_count / last_reviewed_at bumps with --mark-reviewed."""
         with tempfile.TemporaryDirectory() as tmp:
             for i in range(3):
                 run_cli("capture", "--text", f"insight number {i}", cwd=tmp)
 
-            scan = run_cli("scan", "--mode", "random", "--limit", "2", cwd=tmp)
+            scan = run_cli(
+                "scan", "--mode", "random", "--limit", "2", "--mark-reviewed",
+                cwd=tmp,
+            )
             lines = [line for line in scan.stdout.strip().splitlines() if line]
             self.assertEqual(2, len(lines))
 
@@ -152,6 +157,21 @@ class DaoMarkdownCliTest(unittest.TestCase):
                 file_text = Path(path_str).read_text(encoding="utf-8")
                 self.assertIn("review_count: 1", file_text)
                 self.assertIn("last_reviewed_at: 20", file_text)
+
+    def test_scan_default_is_readonly(self):
+        """P1#16: default scan does NOT bump review_count, so an
+        interactive `scan` doesn't masquerade as a real re-engagement."""
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("capture", "--text", "an insight", cwd=tmp)
+            path = Path(captured.stdout.strip())
+
+            scan = run_cli("scan", "--mode", "random", "--limit", "1", cwd=tmp)
+            self.assertIn("an insight", scan.stdout)
+            # Output reports 0 (no bump), and file is unchanged
+            self.assertTrue(scan.stdout.startswith("0\t"))
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("review_count: 0", text)
+            self.assertIn("last_reviewed_at:\n", text)
 
     def test_scan_filters_by_tag(self):
         with tempfile.TemporaryDirectory() as tmp:
