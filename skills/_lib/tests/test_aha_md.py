@@ -456,6 +456,46 @@ class SchemaVersionCompatibleTest(unittest.TestCase):
         self.assertIn("unparseable", buf.getvalue())
 
 
+class ConflictCopyFilterTest(unittest.TestCase):
+    """P1#10: sync tools (Dropbox, Box, older iCloud) write "conflicted
+    copy" filenames when two devices race. Those files are sync
+    artifacts, never legitimate records; counting them inflates every
+    reflect aggregate and daily review."""
+
+    def test_is_conflict_copy_matches_common_patterns(self):
+        for name in [
+            "task-123 (laptop's conflicted copy 2026-05-10).md",
+            "idea-001 (Box's Conflicted Copy).md",
+            "dao-x CONFLICT.md",
+        ]:
+            self.assertTrue(
+                aha_md.is_conflict_copy(Path(name)),
+                f"expected {name!r} to be flagged",
+            )
+
+    def test_is_conflict_copy_passes_normal_records(self):
+        for name in [
+            "idea-20260516-001.md",
+            "task-future.md",
+            # iCloud's terse `<name> 2.md` collides with our own `-2.md`
+            # suffix, so we deliberately do NOT flag it.
+            "idea-001-2.md",
+        ]:
+            self.assertFalse(
+                aha_md.is_conflict_copy(Path(name)),
+                f"expected {name!r} to be accepted",
+            )
+
+    def test_iter_record_paths_skips_conflicts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "task-A.md").write_text("a", encoding="utf-8")
+            (root / "task-B (conflicted copy 2026-05-10).md").write_text("b", encoding="utf-8")
+            yielded = list(aha_md.iter_record_paths(root))
+            names = [p.name for p in yielded]
+            self.assertEqual(["task-A.md"], names)
+
+
 class AtomicWriteTest(unittest.TestCase):
     def test_atomic_write_replaces_completely(self):
         with tempfile.TemporaryDirectory() as tmp:

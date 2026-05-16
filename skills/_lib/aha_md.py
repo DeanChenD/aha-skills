@@ -623,6 +623,37 @@ def check_manifest_consistency():
         pass
 
 
+def iter_record_paths(root, pattern="*.md"):
+    """Yield ``.md`` record paths under ``root`` in sorted order, skipping
+    sync-tool conflict copies. Drop-in for ``sorted(root.rglob("*.md"))``
+    in every scan / aggregate loop."""
+    for path in sorted(Path(root).rglob(pattern)):
+        if is_conflict_copy(path):
+            continue
+        yield path
+
+
+def is_conflict_copy(path):
+    """Return True if `path` looks like a sync-tool conflict copy.
+
+    Dropbox writes ``foo (computer's conflicted copy 2026-05-10).md`` when
+    two devices edit the same file before sync settles. Box and various
+    enterprise sync tools follow the same shape. iCloud Drive's older
+    behavior wrote ``conflicted copy`` filenames as well.
+
+    Counting such files as independent records inflates reflect aggregates
+    and ``daily review`` counts; aha-skills' own write path is atomic and
+    flock-protected, so a "conflict" file in our workspace is always a
+    sync-tool artifact, never an intentional record.
+
+    Match is case-insensitive substring on the basename so any variant
+    (``Conflicted Copy``, ``CONFLICT``) is caught. iCloud's terse
+    ``<name> 2.md`` pattern is deliberately NOT filtered — it collides
+    with our own ``-2.md`` collision suffix.
+    """
+    return "conflict" in Path(path).name.lower()
+
+
 def schema_version_compatible(meta, *, path=None, expected=CURRENT_SCHEMA_VERSION):
     """Read-side schema check: warn on mismatch, return False so the
     caller can skip the record instead of mutating it under the wrong

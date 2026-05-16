@@ -281,4 +281,5 @@ python3 skills/reflect/tests/test_reflect_md.py
 - frontmatter 与章节单行的自由文本字段（`--note` / `--decision` / `--difficulty` 等）会把 `\n` 转为 ↵ 标记，防止 row-injection 伪造 `status: dropped` 等。
 - 新增 skill 沿用同款骨架：`SKILL.md`，可选 `scripts/`、`tests/`、`references/`；从 `skills/_lib/aha_md.py` 复用所有原语。
 - **shell 注入面**：所有接收原始用户文本的子命令（`capture --text`、`task --text`、`log --text`、`refine --text`、`discuss --conversation` 等）都额外提供 `--<name>-stdin` / `--<name>-file` 入口。**agent 在拼 bash 命令时永远走 stdin / file**——把 `$(...)` / 反引号 / 管道字符直接嵌进 `--text "..."` 双引号会被 shell 解释执行。README 的 quick-start 示例为了简洁仍写 `--text "..."`，**仅当文本是静态字面量时使用**。
+- **同步工具 conflict 文件被跳过**：reflect / scan / daily review 的 rglob 自动过滤 basename 含 `conflict`（case-insensitive）的文件——Dropbox / Box / 老版 iCloud 在跨设备 race 时会写出 `task-X (laptop's conflicted copy 2026-05-10).md`，这是 sync 副产物不是真实记录。aha-skills 自己的原子 rename + flock 保证不会产生这种文件；如果你看到一个，应该 diff 后手动合并或删除。
 

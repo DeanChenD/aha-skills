@@ -18,6 +18,7 @@ from aha_md import (  # noqa: E402
     escape_pseudo_h2,
     format_tags,
     int_meta,
+    iter_record_paths,
     load_record,
     local_now,
     locked_record,
@@ -181,7 +182,7 @@ def scan(args):
     cutoff = now - timedelta(days=args.stale_days)
     cooldown_until_now = now - timedelta(hours=args.cooldown_hours) if args.cooldown_hours > 0 else None
     rows = []
-    for path in sorted(root.rglob("*.md")):
+    for path in iter_record_paths(root):
         meta = parse_frontmatter(path)
         if not schema_version_compatible(meta, path=path):
             continue

@@ -25,6 +25,7 @@ from aha_md import (  # noqa: E402
     check_manifest_consistency,
     ensure_dir,
     ensure_workspace_manifest,
+    iter_record_paths,
     local_now,
     parse_dt,
     parse_frontmatter_lines,
@@ -119,7 +120,7 @@ def load_records(source, start, end):
     if source in ("idea", "all"):
         root = _idea_dir()
         if root.is_dir():
-            for path in sorted(root.rglob("*.md")):
+            for path in iter_record_paths(root):
                 meta, body = _parse_frontmatter_with_body(path)
                 if meta is None:
                     continue
@@ -129,7 +130,7 @@ def load_records(source, start, end):
     if source in ("dao", "all"):
         root = _dao_dir()
         if root.is_dir():
-            for path in sorted(root.rglob("*.md")):
+            for path in iter_record_paths(root):
                 meta, body = _parse_frontmatter_with_body(path)
                 if meta is None:
                     continue
@@ -139,7 +140,7 @@ def load_records(source, start, end):
     if source in ("daily", "all"):
         root = _daily_tasks_dir()
         if root.is_dir():
-            for path in sorted(root.rglob("*.md")):
+            for path in iter_record_paths(root):
                 meta, body = _parse_frontmatter_with_body(path)
                 if meta is None:
                     continue
@@ -150,7 +151,7 @@ def load_records(source, start, end):
                 out.append(("daily.task", "task", meta, body, path))
         root = _daily_logs_dir()
         if root.is_dir():
-            for path in sorted(root.rglob("*.md")):
+            for path in iter_record_paths(root):
                 meta, body = _parse_frontmatter_with_body(path)
                 if meta is None:
                     continue
@@ -253,7 +254,7 @@ def difficulties(args):
     root = _daily_tasks_dir()
     if not root.is_dir():
         return
-    for path in sorted(root.rglob("*.md")):
+    for path in iter_record_paths(root):
         meta, body = _parse_frontmatter_with_body(path)
         if meta is None:
             continue
@@ -369,7 +370,7 @@ def _collect_difficulties(start, end):
     root = _daily_tasks_dir()
     if not root.is_dir():
         return out
-    for path in sorted(root.rglob("*.md")):
+    for path in iter_record_paths(root):
         meta, body = _parse_frontmatter_with_body(path)
         if meta is None or not body:
             continue

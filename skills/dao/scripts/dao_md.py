@@ -19,6 +19,7 @@ from aha_md import (  # noqa: E402
     escape_pseudo_h2,
     format_tags,
     int_meta,
+    iter_record_paths,
     load_record,
     local_now,
     locked_record,
@@ -251,7 +252,7 @@ def scan(args):
     ensure_dir(root)
 
     candidates = []
-    for path in sorted(root.rglob("*.md")):
+    for path in iter_record_paths(root):
         text = path.read_text(encoding="utf-8")
         fm_lines, body = split_frontmatter(text)
         if not fm_lines:
