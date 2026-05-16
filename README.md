@@ -137,7 +137,7 @@ python3 skills/dao/scripts/dao_md.py scan --mode least-reviewed --tag courage
   - 日志：`./aha-workspace/daily/logs/log-YYYY-MM-DD.md`（每天一个文件，多个 `## HH:MM — title` 子段追加在内）。
   - Check-in 记录：`./aha-workspace/daily/check-ins/<task-id>-checkin-NNN.md`。
   - 复盘（`daily_md.py review` 写出，与 reflect.save 同款 write-once 纪律）：`./aha-workspace/daily/reviews/review-<period-id>.md`。
-- **动作**：`task` / `update` / `checkin` / `log` / `scan`（不强加状态流转）。
+- **动作**：`task` / `update` / `checkin` / `log` / `scan` / `review`（不强加状态流转）。
 - **CLI**：`skills/daily/scripts/daily_md.py`。
 
 过期任务的会话流程、check-in 模式和复盘骨架见 [`skills/daily/SKILL.md`](skills/daily/SKILL.md)。
