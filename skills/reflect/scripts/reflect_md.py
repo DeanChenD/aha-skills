@@ -351,7 +351,7 @@ def _render_snapshot(records, args, start, end):
     if by_source["idea"]:
         for _, _, meta, body, _ in by_source["idea"]:
             tags = parse_tags_field(meta.get("tags", ""))
-            tag_str = ", ".join(tags) if tags else "-"
+            tag_str = ", ".join(render_untrusted_inline(t) for t in tags) if tags else "-"
             lines.append(
                 f"- {meta.get('status', '?'):<11} | tags: [{tag_str}] | "
                 f"{meta.get('id', '')} — {render_untrusted_inline(title_from_body(body))}"
@@ -366,7 +366,7 @@ def _render_snapshot(records, args, start, end):
         for _, _, meta, body, _ in by_source["dao"]:
             updated = meta.get("updated_at", "")[:10] or "?"
             tags = parse_tags_field(meta.get("tags", ""))
-            tag_str = ", ".join(tags) if tags else "-"
+            tag_str = ", ".join(render_untrusted_inline(t) for t in tags) if tags else "-"
             lines.append(
                 f"- {updated} | tags: [{tag_str}] | "
                 f"{meta.get('id', '')} — {render_untrusted_inline(title_from_body(body))}"
@@ -396,7 +396,7 @@ def _render_snapshot(records, args, start, end):
     if logs_in:
         for _, _, meta, _body, _ in logs_in:
             tags = parse_tags_field(meta.get("tags", ""))
-            tag_str = ", ".join(tags) if tags else "-"
+            tag_str = ", ".join(render_untrusted_inline(t) for t in tags) if tags else "-"
             lines.append(
                 f"- {meta.get('date', '?')} | {meta.get('entry_count', '0')} entries "
                 f"| tags: [{tag_str}]"

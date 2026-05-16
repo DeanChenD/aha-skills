@@ -702,7 +702,7 @@ def _render_review_snapshot(start, end):
     if logs_in:
         for _, meta, _body in logs_in:
             tags = parse_tags_field(meta.get("tags", ""))
-            tag_str = ", ".join(tags) if tags else "-"
+            tag_str = ", ".join(render_untrusted_inline(t) for t in tags) if tags else "-"
             lines.append(
                 f"- {meta.get('date', '?')} | {meta.get('entry_count', '0')} entries "
                 f"| tags: [{tag_str}]"
