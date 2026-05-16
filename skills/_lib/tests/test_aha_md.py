@@ -764,6 +764,14 @@ class UniquePathReservationTest(unittest.TestCase):
             self.assertEqual("rec-001-2", cid2)
             self.assertTrue(path2.exists())
 
+    def test_unique_path_rejects_path_traversal_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for bad in ("../escaped", "x/evil", "x\\evil", "..evil", ".hidden"):
+                with self.subTest(bad=bad):
+                    with self.assertRaises(SystemExit):
+                        aha_md.unique_path(Path(tmp), bad)
+            self.assertEqual([], list(Path(tmp).glob("*.md")))
+
     def test_concurrent_unique_path_calls_all_distinct(self):
         """Spawn N processes that all reserve the same base_id; each must
         get its own path. Without O_EXCL, exists() polling lets multiple
@@ -906,6 +914,22 @@ class WorkspaceNestingGuardTest(unittest.TestCase):
                 with self.assertRaises(SystemExit) as cm:
                     aha_md.workspace_anchor()
                 self.assertIn("nested", str(cm.exception).lower()) if False else None
+                msg = str(cm.exception)
+                self.assertIn("Refusing to anchor", msg)
+                self.assertIn(str(root), msg)
+        finally:
+            os.chdir(original_cwd)
+
+    def test_anchor_refuses_when_cwd_is_aha_workspace(self):
+        original_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp).resolve()
+                workspace = root / aha_md.WORKSPACE_DIR_NAME
+                workspace.mkdir()
+                os.chdir(workspace)
+                with self.assertRaises(SystemExit) as cm:
+                    aha_md.workspace_anchor()
                 msg = str(cm.exception)
                 self.assertIn("Refusing to anchor", msg)
                 self.assertIn(str(root), msg)

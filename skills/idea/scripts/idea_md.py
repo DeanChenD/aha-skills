@@ -249,6 +249,8 @@ def scan(args):
         meta = parse_frontmatter(path)
         if not schema_version_compatible(meta, path=path):
             continue
+        if not meta.get("id") or not meta.get("status"):
+            continue
         status = meta.get("status", "").strip()
         if args.include_completed:
             eligible = True

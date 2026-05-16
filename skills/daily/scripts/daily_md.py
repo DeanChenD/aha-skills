@@ -386,23 +386,25 @@ def _do_checkin(path, args):
     # disk while the parent's checkin_count rolled back, the reserved
     # path bumps to `-2` instead of clobbering the orphan.
     checkin_id, checkin_path = unique_path(checkins_dir, base_checkin_id)
-    atomic_write(
-        checkin_path,
-        render_checkin_body(
-            checkin_id,
-            parent_id,
-            now,
-            topic,
-            conversation,
-            takeaway,
-            difficulty,
-            next_step,
-        ),
+    checkin_body = render_checkin_body(
+        checkin_id,
+        parent_id,
+        now,
+        topic,
+        conversation,
+        takeaway,
+        difficulty,
+        next_step,
     )
 
     rel_link = (Path("..") / "check-ins" / checkin_path.name).as_posix()
+    display_index = (
+        checkin_id.split("-checkin-", 1)[1]
+        if "-checkin-" in checkin_id
+        else checkin_index
+    )
     summary_line = (
-        f"- {now.date().isoformat()}: [Check-in {checkin_index}]({rel_link}) — {takeaway}"
+        f"- {now.date().isoformat()}: [Check-in {display_index}]({rel_link}) — {takeaway}"
     )
     body = append_to_section(body, CHECKIN_LOG_HEADING, summary_line)
 
@@ -412,14 +414,23 @@ def _do_checkin(path, args):
         body = append_to_section(
             body,
             DIFFICULTY_LOG_HEADING,
-            f"- {now.date().isoformat()} (check-in {checkin_index}): {difficulty}",
+            f"- {now.date().isoformat()} (check-in {display_index}): {difficulty}",
         )
 
     set_meta(lines, "checkin_count", str(new_count))
     set_meta(lines, "updated_at", now.isoformat(timespec="seconds"))
 
-    verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
-    save_record(path, lines, body)
+    try:
+        verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
+        save_record(path, lines, body)
+    except BaseException:
+        try:
+            if checkin_path.exists() and checkin_path.stat().st_size == 0:
+                checkin_path.unlink()
+        except OSError:
+            pass
+        raise
+    atomic_write(checkin_path, checkin_body)
     return checkin_path
 
 

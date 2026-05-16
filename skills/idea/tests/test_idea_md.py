@@ -325,6 +325,17 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertEqual("", scan.stdout)
             self.assertTrue(expected_idea_dir(tmp).is_dir())
 
+    def test_scan_include_completed_skips_frontmatterless_markdown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            idea_dir = expected_idea_dir(tmp)
+            idea_dir.mkdir(parents=True)
+            stray = idea_dir / "notes.md"
+            stray.write_text("# Not an idea record\n", encoding="utf-8")
+
+            scan = run_cli("scan", "--include-completed", cwd=tmp)
+
+            self.assertEqual("", scan.stdout.strip())
+
     def test_scan_skips_unknown_schema_version(self):
         """P1#7: a file written by a future skill version (schema_version: 99)
         must not be re-surfaced by today's scan — semantics may have shifted.

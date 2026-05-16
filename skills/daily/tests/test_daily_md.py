@@ -217,6 +217,70 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertIn("../check-ins/", main_text)
             self.assertIn("data model still fuzzy", main_text)
 
+    def test_checkin_rejects_poisoned_parent_id_path_traversal(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = expected_tasks_dir(tmp)
+            task_dir.mkdir(parents=True)
+            task_path = task_dir / "task-poison.md"
+            task_path.write_text(
+                "---\n"
+                "id: ../../escaped\n"
+                "schema_version: 1\n"
+                "type: task\n"
+                "status: pending\n"
+                "checkin_count: 0\n"
+                "difficulty_count: 0\n"
+                "---\n"
+                "# Poisoned\n\n"
+                "## Check-in Log 阶段记录\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable, str(SCRIPT), "checkin", str(task_path),
+                    "--topic", "t", "--conversation", "c", "--takeaway", "k",
+                ],
+                capture_output=True, text=True, cwd=tmp,
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("Unsafe", result.stderr)
+            self.assertFalse((Path(tmp) / "aha-workspace" / "escaped-checkin-001.md").exists())
+
+    def test_checkin_does_not_leave_child_file_when_parent_save_conflicts(self):
+        import os
+        from types import SimpleNamespace
+        from unittest import mock
+
+        original_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                os.chdir(tmp)
+                captured = run_cli("task", "--text", "conflicting parent", cwd=tmp)
+                path = Path(captured.stdout.strip())
+                args = SimpleNamespace(
+                    topic="t",
+                    conversation="c",
+                    takeaway="k",
+                    difficulty=None,
+                    next_step=None,
+                    force=False,
+                )
+                with mock.patch.object(
+                    daily_md,
+                    "verify_unchanged_since",
+                    side_effect=SystemExit("conflict"),
+                ):
+                    with self.assertRaises(SystemExit):
+                        daily_md._do_checkin(path, args)
+
+                checkins_dir = expected_checkins_dir(tmp)
+                self.assertEqual([], list(checkins_dir.glob("*.md")))
+        finally:
+            os.chdir(original_cwd)
+
     def test_log_creates_today_file_when_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = run_cli(
@@ -615,6 +679,34 @@ class DailyMarkdownCliTest(unittest.TestCase):
                 capture_output=True, text=True, cwd=tmp,
             )
             self.assertNotEqual(0, result.returncode)
+
+    def test_checkin_does_not_mislabel_bumped_orphan_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            captured = run_cli("task", "--text", "seed", cwd=tmp)
+            task_path = Path(captured.stdout.strip())
+            checkins_dir = expected_checkins_dir(tmp)
+            checkins_dir.mkdir(parents=True, exist_ok=True)
+            parent_id = next(
+                ln.split(": ", 1)[1]
+                for ln in task_path.read_text(encoding="utf-8").splitlines()
+                if ln.startswith("id:")
+            )
+            orphan = checkins_dir / f"{parent_id}-checkin-001.md"
+            orphan.write_text("ORPHAN CONTENT", encoding="utf-8")
+
+            run_cli(
+                "checkin", str(task_path),
+                "--topic", "t", "--conversation", "c",
+                "--takeaway", "k", "--difficulty", "d",
+                cwd=tmp,
+            )
+
+            self.assertEqual("ORPHAN CONTENT", orphan.read_text(encoding="utf-8"))
+            task_text = task_path.read_text(encoding="utf-8")
+            self.assertIn("[Check-in 001-2](", task_text)
+            self.assertIn("checkin-001-2.md", task_text)
+            self.assertIn("(check-in 001-2): d", task_text)
+            self.assertNotIn("[Check-in 001](", task_text)
 
     def test_log_text_via_stdin_preserves_shell_special_chars(self):
         """P0#6: docs route raw user text through stdin instead of inlining

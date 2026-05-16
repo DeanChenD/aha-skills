@@ -446,6 +446,35 @@ def int_meta(meta, key):
         return 0
 
 
+_SAFE_RECORD_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def assert_safe_record_id(value, context="record id"):
+    """Validate an id before using it as a filename stem.
+
+    Capture paths generate ids from timestamps + slugify(), but child
+    records (dao sessions / daily check-ins) derive their base filename
+    from the parent record's frontmatter ``id``. Because records are plain
+    Markdown and can be hand-edited, that metadata is not inherently safe
+    to concatenate into a path. Refuse separators, ``..`` traversal, hidden
+    dot-prefixes, and other shell/path-significant characters here so
+    ``unique_path`` is the final write-boundary guard for every caller.
+    """
+    candidate = str(value or "")
+    if (
+        not _SAFE_RECORD_ID_RE.fullmatch(candidate)
+        or ".." in candidate
+        or candidate.startswith(".")
+    ):
+        raise SystemExit(
+            f"Unsafe {context}: {candidate!r}. "
+            "Record ids used for filenames may contain only ASCII letters, "
+            "digits, dot, underscore, and hyphen; they cannot start with dot "
+            "or contain '..'."
+        )
+    return candidate
+
+
 def unique_path(root, base_id):
     """Reserve a new record path atomically and return ``(id, path)``.
 
@@ -462,11 +491,21 @@ def unique_path(root, base_id):
     which is recoverable but visible — preferable to silently overwriting
     another record's body.
     """
-    Path(root).mkdir(parents=True, exist_ok=True)
+    root = Path(root).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    base_id = assert_safe_record_id(base_id, context="record path base id")
     candidate_id = base_id
     counter = 2
     while True:
-        candidate_path = Path(root) / f"{candidate_id}.md"
+        candidate_path = root / f"{candidate_id}.md"
+        try:
+            candidate_path.resolve().relative_to(root)
+        except ValueError:
+            raise SystemExit(
+                f"Refusing to reserve path outside target directory.\n"
+                f"  root: {root}\n"
+                f"  candidate: {candidate_path}"
+            )
         try:
             fd = os.open(
                 str(candidate_path),
@@ -671,7 +710,7 @@ def workspace_anchor():
             break
     # No manifest. Refuse to anchor here if cwd is already nested
     # inside an existing aha-workspace tree.
-    for ancestor in here.parents:
+    for ancestor in [here, *here.parents]:
         if ancestor.name == WORKSPACE_DIR_NAME:
             raise SystemExit(
                 f"Refusing to anchor a new workspace under an existing "

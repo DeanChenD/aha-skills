@@ -218,7 +218,6 @@ created_at: {timestamp}
 
 {safe_takeaway}
 """
-    atomic_write(session_path, session_body)
 
     rel_link = (Path("..") / "sessions" / session_path.name).as_posix()
     # If unique_path bumped the reserved id (e.g. session-006 → session-006-2
@@ -239,8 +238,17 @@ created_at: {timestamp}
     # scan --mode least-reviewed will not keep re-surfacing it.
     _bump_review(lines, meta, now)
 
-    verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
-    save_record(path, lines, body)
+    try:
+        verify_unchanged_since(path, pre_mtime, force=getattr(args, "force", False))
+        save_record(path, lines, body)
+    except BaseException:
+        try:
+            if session_path.exists() and session_path.stat().st_size == 0:
+                session_path.unlink()
+        except OSError:
+            pass
+        raise
+    atomic_write(session_path, session_body)
     return session_path
 
 

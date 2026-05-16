@@ -138,6 +138,66 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("Distinguish fear from instinct.", main_text)
             self.assertIn("../sessions/", main_text)
 
+    def test_discuss_rejects_poisoned_parent_id_path_traversal(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            dao_dir = expected_dao_dir(tmp)
+            dao_dir.mkdir(parents=True)
+            dao_path = dao_dir / "dao-poison.md"
+            dao_path.write_text(
+                "---\n"
+                "id: ../../escaped\n"
+                "schema_version: 1\n"
+                "discussion_count: 0\n"
+                "review_count: 0\n"
+                "---\n"
+                "# Poisoned\n\n"
+                "## Discussion 探讨\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable, str(SCRIPT), "discuss", str(dao_path),
+                    "--topic", "t", "--conversation", "c", "--takeaway", "k",
+                ],
+                capture_output=True, text=True, cwd=tmp,
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("Unsafe", result.stderr)
+            self.assertFalse((Path(tmp) / "aha-workspace" / "escaped-session-001.md").exists())
+
+    def test_discuss_does_not_leave_session_file_when_parent_save_conflicts(self):
+        import os
+        from types import SimpleNamespace
+        from unittest import mock
+
+        original_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                os.chdir(tmp)
+                captured = run_cli("capture", "--text", "seed", cwd=tmp)
+                path = Path(captured.stdout.strip())
+                args = SimpleNamespace(
+                    topic="t",
+                    conversation="c",
+                    takeaway="k",
+                    force=False,
+                )
+                with mock.patch.object(
+                    dao_md,
+                    "verify_unchanged_since",
+                    side_effect=SystemExit("conflict"),
+                ):
+                    with self.assertRaises(SystemExit):
+                        dao_md._do_discuss(path, args)
+
+                sessions_dir = expected_sessions_dir(tmp)
+                self.assertEqual([], list(sessions_dir.glob("*.md")))
+        finally:
+            os.chdir(original_cwd)
+
     def test_scan_with_mark_reviewed_bumps_count(self):
         """P1#16: scan is read-only by default; the scheduler opts into
         review_count / last_reviewed_at bumps with --mark-reviewed."""
