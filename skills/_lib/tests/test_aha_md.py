@@ -1230,19 +1230,53 @@ class ParseTagsTest(unittest.TestCase):
     def test_valid_list_parsed(self):
         self.assertEqual(["a", "b"], aha_md.parse_tags_field('["a", "b"]'))
 
-    def test_bad_json_silently_returns_empty(self):
-        # Documented behavior — bad tags string is treated as no tags
-        # rather than crashing the scan path. Callers wanting fail-loud
-        # should validate separately.
-        self.assertEqual([], aha_md.parse_tags_field("not-json"))
-        self.assertEqual([], aha_md.parse_tags_field("[unterminated"))
+    def test_simple_yaml_flow_list_parsed(self):
+        self.assertEqual(["agent", "workflow"], aha_md.parse_tags_field("[agent, workflow]"))
+
+    def test_bad_json_warns_and_returns_empty(self):
+        import io
+        from contextlib import redirect_stderr
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            self.assertEqual([], aha_md.parse_tags_field("not-json"))
+            self.assertEqual([], aha_md.parse_tags_field("[unterminated"))
+        self.assertIn("malformed tags field", buf.getvalue())
 
     def test_empty_returns_empty(self):
         self.assertEqual([], aha_md.parse_tags_field(""))
         self.assertEqual([], aha_md.parse_tags_field(None))
 
     def test_non_list_returns_empty(self):
-        self.assertEqual([], aha_md.parse_tags_field('"just a string"'))
+        import io
+        from contextlib import redirect_stderr
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            self.assertEqual([], aha_md.parse_tags_field('"just a string"'))
+        self.assertIn("tags field is not a list", buf.getvalue())
+
+
+class TsvRowTest(unittest.TestCase):
+    def test_escapes_column_and_line_separators(self):
+        row = aha_md.tsv_row(["a\tb", "c\nd", "e\rf"])
+        self.assertEqual("a\\tb\tc\\nd\te\\nf", row)
+        self.assertEqual(3, len(row.split("\t")))
+
+
+class ScanRecordDirTest(unittest.TestCase):
+    def test_counts_parse_errors_for_strict_list_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "good.md").write_text(
+                "---\nid: ok\nschema_version: 1\n---\n# OK\n",
+                encoding="utf-8",
+            )
+            (root / "bad.md").write_text("# no frontmatter\n", encoding="utf-8")
+            health = {}
+            records = aha_md.scan_record_dir("x", root, health=health)
+            self.assertEqual(1, len(records))
+            self.assertEqual(1, health["x"]["present"])
+            self.assertEqual(1, health["x"]["parse_error"])
+            self.assertTrue(aha_md.scan_health_has_issues(health))
 
 
 class PeriodBoundaryTest(unittest.TestCase):

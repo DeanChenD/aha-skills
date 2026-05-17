@@ -543,6 +543,33 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertTrue(task_lines[0].startswith("daily.task\ttask\tpending\t"))
             self.assertIn("listable task", task_lines[0])
 
+    def test_list_escapes_tsv_fields_and_strict_reports_skips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli(
+                "task",
+                "--text",
+                "body",
+                "--title",
+                "title\twith-tab",
+                cwd=tmp,
+            )
+            listing = run_cli("list", "--type", "task", cwd=tmp)
+            line = listing.stdout.rstrip("\n")
+            cols = line.split("\t")
+            self.assertEqual(8, len(cols))
+            self.assertEqual("title\\twith-tab", cols[6])
+
+            bad = expected_tasks_dir(tmp) / "bad.md"
+            bad.write_text("# no frontmatter\n", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "list", "--type", "task", "--strict"],
+                capture_output=True,
+                text=True,
+                cwd=tmp,
+            )
+            self.assertEqual(2, result.returncode)
+            self.assertIn("parse_error=1", result.stderr)
+
     def test_task_with_garbage_due_exits_non_zero(self):
         """parse_due rejects malformed dates with a clear error rather than
         silently storing junk that breaks later scans."""

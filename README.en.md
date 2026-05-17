@@ -193,7 +193,7 @@ Read across `idea` + `dao` + `daily` records over a time window and surface patt
 - **Actions**: `aggregate` / `tags` / `difficulties` / `save` (no per-record state; reflect captures nothing of its own).
 - **CLI**: `skills/reflect/scripts/reflect_md.py`.
 
-`save` pre-fills the reflection file with a deterministic cross-source snapshot (idea / dao / daily.tasks / daily.logs / daily.difficulties + tag frequencies). The agent and user co-author the trailing `## 模式与启示` and `## 下阶段意图` sections during the conversation — those are not auto-fillable.
+`save` pre-fills the reflection file with a deterministic cross-source snapshot (idea / dao / daily.tasks / daily.logs / daily.checkins / daily.reviews / daily.difficulties + tag frequencies). The agent and user co-author the trailing `## 模式与启示` and `## 下阶段意图` sections during the conversation — those are not auto-fillable.
 
 #### Quick start
 
@@ -303,7 +303,8 @@ make test
 - `update` / `refine` / `checkin` / `discuss` refuse to write outside `aha-workspace/<skill>/`.
 - `## Foo` written by the user is escaped to `\## Foo` at write time (CommonMark renders identically); section detection is line-based + fence-aware so it can't be tricked by pseudo-headings inside raw text.
 - Single-line free-text fields in frontmatter and section openers (`--note` / `--decision` / `--difficulty` etc.) have `\n` translated to a `↵` mark, preventing row-injection like fake `status: dropped` lines.
-- **Frontmatter `tags` is a JSON array**: write `tags: ["agent", "workflow"]` (with the double quotes). `parse_tags_field` calls `json.loads`, so YAML flow style `[agent, workflow]` parses as an empty list — meaning reflect / scan won't see those tags. Keep the quotes when hand-editing.
+- **Frontmatter `tags` should be a JSON array**: prefer `tags: ["agent", "workflow"]` (with the double quotes). Readers also accept simple YAML flow style `[agent, workflow]`, but complex / non-list shapes warn on stderr and are treated as empty.
+- TSV outputs such as `list`, `aggregate`, and `scan` escape tabs / newlines inside fields as `\t` / `\n`, keeping the column count stable.
 - New skills follow the same shape: `SKILL.md`, optional `scripts/`, `tests/`, `references/`; reuse all primitives from `skills/_lib/aha_md.py`.
 - **Shell-injection surface**: every subcommand that accepts raw user text (`capture --text`, `task --text`, `log --text`, `refine --text`, `discuss --conversation`, etc.) also exposes `--<name>-stdin` / `--<name>-file` entry points. **Agents must always pipe via stdin / file when assembling bash** — embedding `$(...)` / backticks / pipe characters into `--text "..."` lets the shell execute them. The README quick-starts show the inline form for brevity; **only use it for static literals**.
 - **Sync-tool conflict files are skipped**: reflect / scan / daily review's `rglob` automatically filters out files whose basename contains `conflict` (case-insensitive) — Dropbox / Box / older iCloud write `task-X (laptop's conflicted copy 2026-05-10).md` during cross-device races. These are sync byproducts, not real records. aha-skills' own atomic rename + flock guarantees we don't produce them; if you see one, diff and merge or delete by hand.

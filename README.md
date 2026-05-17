@@ -193,7 +193,7 @@ python3 skills/daily/scripts/daily_md.py scan --mode period --period week --type
 - **动作**：`aggregate` / `tags` / `difficulties` / `save`（reflect 自身不捕获任何新内容）。
 - **CLI**：`skills/reflect/scripts/reflect_md.py`。
 
-`save` 会用 CLI 把跨源数据切片预先填进 reflection 文件（idea / dao / daily.tasks / daily.logs / daily.difficulties + tag 词频）。`## 模式与启示` 和 `## 下阶段意图` 留空，由 agent 与用户在实际对话之后共同填写——不可由 LLM 自动产出。
+`save` 会用 CLI 把跨源数据切片预先填进 reflection 文件（idea / dao / daily.tasks / daily.logs / daily.checkins / daily.reviews / daily.difficulties + tag 词频）。`## 模式与启示` 和 `## 下阶段意图` 留空，由 agent 与用户在实际对话之后共同填写——不可由 LLM 自动产出。
 
 #### 快速上手
 
@@ -302,7 +302,8 @@ make test
 - `update` / `refine` / `checkin` / `discuss` 拒绝写到 `aha-workspace/<skill>/` 之外的路径。
 - 用户原文里的 `## Foo` 在写入时被转义为 `\## Foo`（CommonMark 渲染等同），章节定位是 line-based + fence-aware，不会被 raw text 里的伪标题误导。
 - frontmatter 与章节单行的自由文本字段（`--note` / `--decision` / `--difficulty` 等）会把 `\n` 转为 ↵ 标记，防止 row-injection 伪造 `status: dropped` 等。
-- **frontmatter `tags` 用 JSON 数组**：写法是 `tags: ["agent", "workflow"]`（带双引号）。`parse_tags_field` 走 `json.loads`，YAML flow 风格 `[agent, workflow]` 解析为空数组——意味着 reflect / scan 看不到这些 tag。手改文件时记得保留引号。
+- **frontmatter `tags` 规范写 JSON 数组**：推荐写法是 `tags: ["agent", "workflow"]`（带双引号）。读取端也兼容简单 YAML flow 风格 `[agent, workflow]`，但复杂 / 非列表格式会 stderr warning 并按空标签处理。
+- `list` / `aggregate` / `scan` 等 TSV 输出会把字段内部的 tab / 换行转义成 `\t` / `\n`，保证列数稳定。
 - 新增 skill 沿用同款骨架：`SKILL.md`，可选 `scripts/`、`tests/`、`references/`；从 `skills/_lib/aha_md.py` 复用所有原语。
 - **shell 注入面**：所有接收原始用户文本的子命令（`capture --text`、`task --text`、`log --text`、`refine --text`、`discuss --conversation` 等）都额外提供 `--<name>-stdin` / `--<name>-file` 入口。**agent 在拼 bash 命令时永远走 stdin / file**——把 `$(...)` / 反引号 / 管道字符直接嵌进 `--text "..."` 双引号会被 shell 解释执行。README 的 quick-start 示例为了简洁仍写 `--text "..."`，**仅当文本是静态字面量时使用**。
 - **同步工具 conflict 文件被跳过**：reflect / scan / daily review 的 rglob 自动过滤 basename 含 `conflict`（case-insensitive）的文件——Dropbox / Box / 老版 iCloud 在跨设备 race 时会写出 `task-X (laptop's conflicted copy 2026-05-10).md`，这是 sync 副产物不是真实记录。aha-skills 自己的原子 rename + flock 保证不会产生这种文件；如果你看到一个，应该 diff 后手动合并或删除。

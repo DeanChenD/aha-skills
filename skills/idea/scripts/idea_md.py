@@ -16,6 +16,7 @@ from aha_md import (  # noqa: E402
     doctor_workspace,
     ensure_dir,
     ensure_workspace_manifest,
+    enforce_scan_health,
     escape_pseudo_h2,
     format_tags,
     int_meta,
@@ -25,20 +26,20 @@ from aha_md import (  # noqa: E402
     locked_record,
     parse_dt,
     parse_frontmatter,
-    parse_frontmatter_lines,
     parse_tags_field,
-    read_text_or_warn,
     render_frontmatter,
     replace_section,
     resolve_text_input,
     sanitize_single_line,
     save_record,
+    scan_record_dir,
     schema_version_compatible,
     set_meta,
     slugify,
     split_frontmatter,
     title_from,
     title_from_body,
+    tsv_row,
     unique_path,
     verify_unchanged_since,
     workspace_dir,
@@ -293,7 +294,7 @@ def scan(args):
                         save_record(path, lines, body)
             except (OSError, UnicodeDecodeError):
                 pass
-        print(f"{status}\t{updated}\t{next_review}\t{path}")
+        print(tsv_row([status, updated, next_review, path]))
 
 
 def _record_date_sort_key(meta, key):
@@ -306,19 +307,9 @@ def _record_date_sort_key(meta, key):
 def list_records(args):
     root = default_idea_dir()
     ensure_dir(root)
+    health = {}
     rows = []
-    for path in iter_record_paths(root):
-        text = read_text_or_warn(path)
-        if text is None:
-            continue
-        fm_lines, body = split_frontmatter(text)
-        if not fm_lines:
-            continue
-        meta = parse_frontmatter_lines(fm_lines)
-        if not schema_version_compatible(meta, path=path):
-            continue
-        if not meta.get("id"):
-            continue
+    for path, meta, body in scan_record_dir("idea", root, health=health):
         status = meta.get("status", "")
         tags = parse_tags_field(meta.get("tags", ""))
         if args.status and status != args.status:
@@ -328,6 +319,9 @@ def list_records(args):
         if args.tag and args.tag not in tags:
             continue
         rows.append((path, meta, body, tags))
+
+    if args.strict:
+        enforce_scan_health(health)
 
     sort_key = args.sort
     if sort_key == "created":
@@ -343,7 +337,7 @@ def list_records(args):
         rows = rows[: args.limit]
 
     for path, meta, body, tags in rows:
-        print("\t".join([
+        print(tsv_row([
             "idea",
             "idea",
             meta.get("status", "") or "-",
@@ -407,6 +401,7 @@ def main():
         help="Sort rows (default: updated desc).",
     )
     p_list.add_argument("--limit", type=int, default=0, help="Max rows (0 = unlimited).")
+    p_list.add_argument("--strict", action="store_true", help="Exit non-zero if any record is skipped.")
     p_list.set_defaults(func=list_records)
 
     p_enrich = sub.add_parser(

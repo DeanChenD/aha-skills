@@ -19,34 +19,31 @@ from aha_md import (  # noqa: E402
     doctor_workspace,
     ensure_dir,
     ensure_workspace_manifest,
+    enforce_scan_health,
     escape_pseudo_h2,
     format_tags,
     int_meta,
-    iter_record_paths,
     iter_task_difficulties_in_range,
     load_record,
     local_now,
     locked_record,
     parse_dt,
-    parse_frontmatter_lines,
     parse_tags_field,
     period_id,
     period_range,
-    read_section,
-    read_text_or_warn,
     render_frontmatter,
     render_untrusted_inline,
     resolve_text_input,
     sanitize_single_line,
-    schema_version_compatible,
+    scan_record_dir,
     task_in_period,
     verify_unchanged_since,
     save_record,
     set_meta,
     slugify,
-    split_frontmatter,
     title_from,
     title_from_body,
+    tsv_row,
     unique_path,
     workspace_dir,
 )
@@ -471,84 +468,44 @@ def log(args):
     print(path)
 
 
-def _load_task_records():
+def _load_task_records(health=None):
     root = default_tasks_dir()
     ensure_dir(root)
-    records = []
-    for path in iter_record_paths(root):
-        text = read_text_or_warn(path)
-        if text is None:
-            continue
-        fm_lines, body = split_frontmatter(text)
-        if not fm_lines:
-            continue
-        meta = parse_frontmatter_lines(fm_lines)
-        if not schema_version_compatible(meta, path=path):
-            continue
-        if meta.get("type") and meta.get("type") != "task":
-            continue
-        records.append((path, meta, body))
-    return records
+    return scan_record_dir(
+        "daily.task", root, health=health if health is not None else {},
+        type_filter="task",
+    )
 
 
-def _load_log_records():
+def _load_log_records(health=None):
     root = default_logs_dir()
     ensure_dir(root)
-    records = []
-    for path in iter_record_paths(root):
-        text = read_text_or_warn(path)
-        if text is None:
-            continue
-        fm_lines, body = split_frontmatter(text)
-        if not fm_lines:
-            continue
-        meta = parse_frontmatter_lines(fm_lines)
-        if not schema_version_compatible(meta, path=path):
-            continue
-        if meta.get("type") and meta.get("type") != "log":
-            continue
-        records.append((path, meta, body))
-    return records
+    return scan_record_dir(
+        "daily.log", root, health=health if health is not None else {},
+        type_filter="log",
+    )
 
 
-def _load_checkin_records():
+def _load_checkin_records(health=None):
     root = default_checkins_dir()
     ensure_dir(root)
     records = []
-    for path in iter_record_paths(root):
-        text = read_text_or_warn(path)
-        if text is None:
-            continue
-        fm_lines, body = split_frontmatter(text)
-        if not fm_lines:
-            continue
-        meta = parse_frontmatter_lines(fm_lines)
-        if not schema_version_compatible(meta, path=path):
-            continue
+    for path, meta, body in scan_record_dir(
+        "daily.checkin", root, health=health if health is not None else {},
+    ):
         if not (meta.get("checkin_id") or meta.get("parent_task_id")):
             continue
         records.append((path, meta, body))
     return records
 
 
-def _load_review_records():
+def _load_review_records(health=None):
     root = default_reviews_dir()
     ensure_dir(root)
-    records = []
-    for path in iter_record_paths(root):
-        text = read_text_or_warn(path)
-        if text is None:
-            continue
-        fm_lines, body = split_frontmatter(text)
-        if not fm_lines:
-            continue
-        meta = parse_frontmatter_lines(fm_lines)
-        if not schema_version_compatible(meta, path=path):
-            continue
-        if meta.get("type") and meta.get("type") != "review":
-            continue
-        records.append((path, meta, body))
-    return records
+    return scan_record_dir(
+        "daily.review", root, health=health if health is not None else {},
+        type_filter="review",
+    )
 
 
 def _common_filters(meta, args):
@@ -651,7 +608,7 @@ def scan(args):
         for path, meta, body in tasks_in:
             title = title_from_body(body)
             output_lines.append(
-                "\t".join([
+                tsv_row([
                     "task",
                     meta.get("status", ""),
                     meta.get("due_at", ""),
@@ -668,7 +625,7 @@ def scan(args):
         for path, meta, body in logs_in:
             entry_count = meta.get("entry_count", "0")
             output_lines.append(
-                "\t".join([
+                tsv_row([
                     "log",
                     meta.get("date", ""),
                     entry_count,
@@ -718,10 +675,11 @@ def _list_filters_match(kind, meta, tags, args):
 
 
 def list_records(args):
+    health = {}
     rows = []
 
     if args.type in ("task", "all"):
-        for path, meta, body in _load_task_records():
+        for path, meta, body in _load_task_records(health):
             tags = parse_tags_field(meta.get("tags", ""))
             if not _list_filters_match("task", meta, tags, args):
                 continue
@@ -739,7 +697,7 @@ def list_records(args):
             ))
 
     if args.type in ("log", "all"):
-        for path, meta, body in _load_log_records():
+        for path, meta, body in _load_log_records(health):
             tags = parse_tags_field(meta.get("tags", ""))
             if not _list_filters_match("log", meta, tags, args):
                 continue
@@ -758,7 +716,7 @@ def list_records(args):
             ))
 
     if args.type in ("checkin", "all"):
-        for path, meta, body in _load_checkin_records():
+        for path, meta, body in _load_checkin_records(health):
             tags = parse_tags_field(meta.get("tags", ""))
             if not _list_filters_match("checkin", meta, tags, args):
                 continue
@@ -776,7 +734,7 @@ def list_records(args):
             ))
 
     if args.type in ("review", "all"):
-        for path, meta, body in _load_review_records():
+        for path, meta, body in _load_review_records(health):
             tags = parse_tags_field(meta.get("tags", ""))
             if not _list_filters_match("review", meta, tags, args):
                 continue
@@ -793,12 +751,15 @@ def list_records(args):
                 _row_date_sort_value(row_date),
             ))
 
+    if args.strict:
+        enforce_scan_health(health)
+
     rows = _sort_list_rows(rows, args.sort)
     if args.limit and args.limit > 0:
         rows = rows[: args.limit]
 
     for row in rows:
-        print("\t".join(row[:8]))
+        print(tsv_row(row[:8]))
 
 
 def _collect_difficulties_in_range(start, end):
@@ -1021,6 +982,7 @@ def main():
         help="Sort rows (default: date desc).",
     )
     p_list.add_argument("--limit", type=int, default=0, help="Max rows (0 = unlimited).")
+    p_list.add_argument("--strict", action="store_true", help="Exit non-zero if any record is skipped.")
     p_list.set_defaults(func=list_records)
 
     p_doctor = sub.add_parser(

@@ -82,13 +82,54 @@ def format_tags(value):
 def parse_tags_field(value):
     if not value:
         return []
+    if isinstance(value, list):
+        return [str(item) for item in value]
     try:
         parsed = json.loads(value)
     except (ValueError, json.JSONDecodeError):
+        parsed = _parse_simple_flow_tags(value)
+        if parsed is not None:
+            return parsed
+        sys.stderr.write(
+            f"warning: malformed tags field {value!r}; treating as empty.\n"
+        )
         return []
     if isinstance(parsed, list):
         return [str(item) for item in parsed]
+    sys.stderr.write(
+        f"warning: tags field is not a list {value!r}; treating as empty.\n"
+    )
     return []
+
+
+def _parse_simple_flow_tags(value):
+    """Parse a conservative YAML-flow-style tag list.
+
+    The canonical on-disk shape is JSON, e.g. ``["agent", "workflow"]``.
+    People occasionally hand-edit records as ``[agent, workflow]``; accept
+    that simple form so tags do not silently disappear from scan/list/reflect.
+    Complex YAML is intentionally out of scope.
+    """
+    if not isinstance(value, str):
+        return None
+    raw = value.strip()
+    if not (raw.startswith("[") and raw.endswith("]")):
+        return None
+    inner = raw[1:-1].strip()
+    if not inner:
+        return []
+    tags = []
+    for item in inner.split(","):
+        tag = item.strip()
+        if not tag:
+            continue
+        if len(tag) >= 2 and tag[0] == tag[-1] and tag[0] in ("'", '"'):
+            tag = tag[1:-1].strip()
+        elif not re.fullmatch(r"[A-Za-z0-9_.:/+@-]+", tag):
+            return None
+        if tag:
+            tags.append(tag)
+    return tags
 
 
 def parse_dt(value):
@@ -159,6 +200,102 @@ def read_text_or_warn(path):
             file=_sys.stderr,
         )
         return None
+
+
+def tsv_escape(value):
+    """Return a single safe TSV field.
+
+    Rows emitted by list/aggregate commands are meant for scripts. User
+    titles, tags, and notes can contain tabs or newlines, so normalize those
+    separators before joining columns.
+    """
+    if value is None:
+        return ""
+    s = str(value)
+    return s.replace("\r\n", "\n").replace("\r", "\n").replace("\t", "\\t").replace("\n", "\\n")
+
+
+def tsv_row(fields):
+    return "\t".join(tsv_escape(field) for field in fields)
+
+
+def new_scan_health_bucket():
+    return {"present": 0, "out_of_range": 0, "parse_error": 0, "missing": False}
+
+
+def scan_health_has_issues(health):
+    for bucket in health.values():
+        if bucket.get("missing") or bucket.get("parse_error", 0) > 0:
+            return True
+    return False
+
+
+def scan_health_issue_lines(health, *, prefix="strict"):
+    lines = []
+    for source, bucket in health.items():
+        if bucket.get("missing") or bucket.get("parse_error", 0) > 0:
+            lines.append(
+                f"{prefix}: {source} — missing={bucket.get('missing', False)} "
+                f"parse_error={bucket.get('parse_error', 0)}"
+            )
+    return lines
+
+
+def enforce_scan_health(health, *, prefix="strict", exit_code=2):
+    if not scan_health_has_issues(health):
+        return
+    for line in scan_health_issue_lines(health, prefix=prefix):
+        sys.stderr.write(f"{line}\n")
+    raise SystemExit(exit_code)
+
+
+def read_record_for_scan(path):
+    """Return ``(meta, body, error)`` for tolerant read paths.
+
+    ``error`` is ``None`` for usable records and ``parse_error`` otherwise.
+    Read/decode failures already emit stderr warnings via ``read_text_or_warn``.
+    """
+    text = read_text_or_warn(path)
+    if text is None:
+        return None, None, "parse_error"
+    lines, body = split_frontmatter(text)
+    if not lines:
+        return None, None, "parse_error"
+    meta = parse_frontmatter_lines(lines)
+    if not schema_version_compatible(meta, path=path):
+        return None, None, "parse_error"
+    return meta, body, None
+
+
+def scan_record_dir(label, root, *, health=None, type_filter=None, include=None):
+    """Load readable Markdown records from ``root`` with health counters.
+
+    ``include`` is an optional predicate over frontmatter used for date/range
+    filtering. Type mismatches are ignored rather than treated as parse errors
+    so misplaced but valid files do not poison unrelated scans.
+    """
+    if health is None:
+        health = {}
+    bucket = health.setdefault(label, new_scan_health_bucket())
+    root = Path(root)
+    if not root.is_dir():
+        bucket["missing"] = True
+        return []
+
+    records = []
+    for path in iter_record_paths(root):
+        meta, body, error = read_record_for_scan(path)
+        if error is not None:
+            bucket["parse_error"] += 1
+            continue
+        if type_filter and meta.get("type") and meta.get("type") != type_filter:
+            continue
+        if include is not None and not include(meta):
+            bucket["out_of_range"] += 1
+            continue
+        bucket["present"] += 1
+        records.append((path, meta, body))
+    return records
 
 
 def parse_frontmatter(path):

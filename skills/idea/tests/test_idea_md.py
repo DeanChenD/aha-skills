@@ -274,6 +274,26 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertEqual(1, len(paused_lines))
             self.assertIn("paused idea", paused_lines[0])
 
+    def test_list_escapes_tsv_fields_and_strict_reports_skips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli("capture", "--text", "body", "--title", "title\twith-tab", cwd=tmp)
+            listing = run_cli("list", cwd=tmp)
+            line = listing.stdout.rstrip("\n")
+            cols = line.split("\t")
+            self.assertEqual(8, len(cols))
+            self.assertEqual("title\\twith-tab", cols[6])
+
+            bad = expected_idea_dir(tmp) / "bad.md"
+            bad.write_text("# no frontmatter\n", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "list", "--strict"],
+                capture_output=True,
+                text=True,
+                cwd=tmp,
+            )
+            self.assertEqual(2, result.returncode)
+            self.assertIn("parse_error=1", result.stderr)
+
     def test_scan_with_mark_prompted_then_cooldown_skips(self):
         """P1#16: scan is read-only by default; the scheduler opts into
         last_prompted_at stamping with --mark-prompted. Subsequent scan

@@ -169,6 +169,7 @@ Output rows are TSV:
 
 Use `list` for full inventory, browsing, export, or "show all daily records" requests. It is read-only and returns TSV rows shaped for cross-source aggregation:
 `source\tsub_type\tstatus\tdate\tid\tpath\ttitle\ttags`, where `source` is one of `daily.task`, `daily.log`, `daily.checkin`, or `daily.review`. Use `scan` only for active/overdue/period resurfacing.
+Add `--strict` when a skipped / malformed record should fail the command.
 
 ## Red Flags — STOP and re-read
 

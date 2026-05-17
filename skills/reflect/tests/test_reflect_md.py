@@ -48,6 +48,25 @@ def seed_log(cwd, text, tags=""):
     return Path(run(DAILY_SCRIPT, *args, cwd=cwd).stdout.strip())
 
 
+def seed_checkin(cwd, task_path):
+    return Path(run(
+        DAILY_SCRIPT,
+        "checkin",
+        str(task_path),
+        "--topic",
+        "progress",
+        "--conversation",
+        "user: status\nagent: moving",
+        "--takeaway",
+        "moving",
+        cwd=cwd,
+    ).stdout.strip())
+
+
+def seed_review(cwd):
+    return Path(run(DAILY_SCRIPT, "review", "--period", "day", cwd=cwd).stdout.strip())
+
+
 def add_difficulty(cwd, task_path, text):
     run(DAILY_SCRIPT, "update", str(task_path), "--difficulty", text, cwd=cwd)
 
@@ -101,13 +120,18 @@ class AggregateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             seed_idea(tmp, "research X", tags="agent,plan")
             seed_dao(tmp, "fear is a compass", tags="boundary")
-            seed_task(tmp, "ship v1", due="2026-12-31", tags="work")
+            task = seed_task(tmp, "ship v1", due="2026-12-31", tags="work")
             seed_log(tmp, "morning fog", tags="mood")
+            seed_checkin(tmp, task)
+            seed_review(tmp)
 
             res = run(REFLECT_SCRIPT, "aggregate", "--period", "day", cwd=tmp)
             lines = [ln for ln in res.stdout.splitlines() if ln.strip()]
             sources = sorted({ln.split("\t")[0] for ln in lines})
-            self.assertEqual(["daily.log", "daily.task", "dao", "idea"], sources)
+            self.assertEqual(
+                ["daily.checkin", "daily.log", "daily.review", "daily.task", "dao", "idea"],
+                sources,
+            )
 
     def test_aggregate_filter_by_source(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,6 +151,19 @@ class AggregateTest(unittest.TestCase):
                 "--date", "2020-01-01", cwd=tmp,
             )
             self.assertEqual("", res.stdout.strip())
+
+    def test_aggregate_escapes_tsv_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            seed_idea(tmp, "body", tags="agent")
+            idea_path = next((Path(tmp) / "aha-workspace" / "idea" / "idea-md").glob("idea-*.md"))
+            text = idea_path.read_text(encoding="utf-8")
+            idea_path.write_text(text.replace("# body", "# title\twith-tab"), encoding="utf-8")
+
+            res = run(REFLECT_SCRIPT, "aggregate", "--period", "day", cwd=tmp)
+            line = res.stdout.strip()
+            cols = line.split("\t")
+            self.assertEqual(8, len(cols))
+            self.assertEqual("title\\twith-tab", cols[6])
 
 
 class TagsTest(unittest.TestCase):

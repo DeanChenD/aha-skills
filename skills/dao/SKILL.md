@@ -143,7 +143,7 @@ After running scan, pick **at most one** entry to engage with: read the `## Refi
 
 Do not bulk-process multiple entries in one breath. Review is meant to be slow.
 
-Use `list` for full inventory, browsing, export, or "show me all dao records" requests. Use `scan` only when the intent is resurfacing records for review.
+Use `list` for full inventory, browsing, export, or "show me all dao records" requests. Add `--strict` when a skipped / malformed record should fail the command. Use `scan` only when the intent is resurfacing records for review.
 
 Filters:
 - `--tag <tag>` and `--category <name>` narrow the candidate pool before sorting.

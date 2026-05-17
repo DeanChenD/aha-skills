@@ -74,6 +74,12 @@ sources: [idea, dao, daily]
 ### daily.logs (N)
 - <date> | <entry_count> entries | tags: [...]
 
+### daily.checkins (N)
+- <created date> | parent <task_id> | <checkin_id> — <title>
+
+### daily.reviews (N)
+- <period> | <range_start>..<range_end> | <review_id> — <title>
+
 ### daily.difficulties (N)
 - <date> (<task_id>): <text>
 
@@ -106,7 +112,7 @@ python3 <skill-dir>/scripts/reflect_md.py aggregate \
 TSV output, one row per record, columns:
 `<source>\t<sub_type>\t<status_or_-> \t<date_or_iso>\t<id>\t<path>\t<title>\t<tags_csv>`
 
-Where `source` ∈ {`idea`, `dao`, `daily.task`, `daily.log`}. A record is "in range" when its `updated_at` (or `date`, for daily logs) falls in `[start, end]` inclusive. Use this when you want a one-shot manifest of what happened.
+Where `source` ∈ {`idea`, `dao`, `daily.task`, `daily.log`, `daily.checkin`, `daily.review`}. A record is "in range" when its `updated_at`, `created_at`, or `date` (daily logs) falls in `[start, end]` inclusive; daily tasks also use the task-period inclusion rules. Use this when you want a one-shot manifest of what happened.
 
 ### tags — frequency + co-occurrence
 

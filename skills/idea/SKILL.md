@@ -156,7 +156,7 @@ When asked to continue, review, remind, or scan ideas:
 
 If an idea has not moved after repeated reminders, explicitly suggest `paused` or `killed`. Preserve the reason in `Decision Log`.
 
-When asked to show all ideas, list the inbox, export records, or answer "what exists?", run `list`. `list` is full inventory and read-only; `scan` is only for due/stale resurfacing.
+When asked to show all ideas, list the inbox, export records, or answer "what exists?", run `list`. `list` is full inventory and read-only; add `--strict` when a skipped / malformed record should fail the command. `scan` is only for due/stale resurfacing.
 
 ## Scheduled Review
 

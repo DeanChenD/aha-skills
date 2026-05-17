@@ -269,6 +269,22 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertIn("courage matters", courage_lines[0])
             self.assertIn("courage", courage_lines[0])
 
+    def test_list_strict_reports_skipped_records(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli("capture", "--text", "valid insight", cwd=tmp)
+            bad = expected_dao_dir(tmp) / "bad.md"
+            bad.write_text("# no frontmatter\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "list", "--strict"],
+                capture_output=True,
+                text=True,
+                cwd=tmp,
+            )
+
+            self.assertEqual(2, result.returncode)
+            self.assertIn("parse_error=1", result.stderr)
+
     def test_update_appends_note_and_changes_tags(self):
         with tempfile.TemporaryDirectory() as tmp:
             captured = run_cli("capture", "--text", "before update", cwd=tmp)

@@ -17,6 +17,7 @@ from aha_md import (  # noqa: E402
     doctor_workspace,
     ensure_dir,
     ensure_workspace_manifest,
+    enforce_scan_health,
     escape_pseudo_h2,
     format_tags,
     int_meta,
@@ -33,6 +34,7 @@ from aha_md import (  # noqa: E402
     replace_section,
     resolve_text_input,
     sanitize_single_line,
+    scan_record_dir,
     schema_version_compatible,
     save_record,
     set_meta,
@@ -40,6 +42,7 @@ from aha_md import (  # noqa: E402
     split_frontmatter,
     title_from,
     title_from_body,
+    tsv_row,
     unique_path,
     verify_unchanged_since,
     workspace_dir,
@@ -312,9 +315,7 @@ def scan(args):
                 set_meta(fm_lines, "review_count", str(review_count))
                 set_meta(fm_lines, "last_reviewed_at", timestamp)
                 save_record(path, fm_lines, fresh_body)
-        print(
-            f"{review_count}\t{meta.get('updated_at', '')}\t{meta.get('id', '')}\t{path}\t{title}"
-        )
+        print(tsv_row([review_count, meta.get("updated_at", ""), meta.get("id", ""), path, title]))
 
 
 def _record_date_sort_key(meta, key):
@@ -328,25 +329,18 @@ def list_records(args):
     root = default_dao_dir()
     ensure_dir(root)
 
+    health = {}
     rows = []
-    for path in iter_record_paths(root):
-        text = read_text_or_warn(path)
-        if text is None:
-            continue
-        fm_lines, body = split_frontmatter(text)
-        if not fm_lines:
-            continue
-        meta = parse_frontmatter_lines(fm_lines)
-        if not schema_version_compatible(meta, path=path):
-            continue
-        if not meta.get("id"):
-            continue
+    for path, meta, body in scan_record_dir("dao", root, health=health):
         tags = parse_tags_field(meta.get("tags", ""))
         if args.tag and args.tag not in tags:
             continue
         if args.category and args.category != meta.get("primary_category", ""):
             continue
         rows.append((path, meta, body, tags))
+
+    if args.strict:
+        enforce_scan_health(health)
 
     sort_key = args.sort
     if sort_key == "created":
@@ -362,7 +356,7 @@ def list_records(args):
         rows = rows[: args.limit]
 
     for path, meta, body, tags in rows:
-        print("\t".join([
+        print(tsv_row([
             "dao",
             "dao",
             "-",
@@ -499,6 +493,7 @@ def main():
         help="Sort rows (default: updated desc).",
     )
     p_list.add_argument("--limit", type=int, default=0, help="Max rows (0 = unlimited).")
+    p_list.add_argument("--strict", action="store_true", help="Exit non-zero if any record is skipped.")
     p_list.set_defaults(func=list_records)
 
     p_update = sub.add_parser("update", help="Update dao frontmatter and append notes.")

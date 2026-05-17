@@ -25,24 +25,22 @@ from aha_md import (  # noqa: E402
     doctor_workspace,
     ensure_dir,
     ensure_workspace_manifest,
-    iter_record_paths,
+    enforce_scan_health,
     iter_task_difficulties_in_range,
     local_now,
     parse_dt,
-    parse_frontmatter_lines,
     parse_tags_field,
     period_id,
     period_range,
-    read_section,
-    read_text_or_warn,
     render_frontmatter,
     render_untrusted_inline,
-    schema_version_compatible,
-    split_frontmatter,
+    scan_record_dir,
     task_in_period,
     title_from_body,
+    tsv_row,
     unique_path,
     workspace_dir,
+    new_scan_health_bucket,
 )
 
 
@@ -69,28 +67,16 @@ def _daily_logs_dir():
     return workspace_dir("daily", "logs")
 
 
+def _daily_checkins_dir():
+    return workspace_dir("daily", "check-ins")
+
+
+def _daily_reviews_dir():
+    return workspace_dir("daily", "reviews")
+
+
 def _reflect_dir():
     return workspace_dir("reflect", "reflections")
-
-
-def _parse_frontmatter_with_body(path):
-    """Return (meta_dict, body) or (None, None) when path is not parseable
-    or has a schema_version we cannot interpret with current semantics.
-
-    Read errors (OSError) and decode errors (UnicodeDecodeError on a non-
-    UTF-8 file) both fold into (None, None) — the caller bumps the
-    parse_error counter and a stderr warning fires from read_text_or_warn.
-    """
-    text = read_text_or_warn(path)
-    if text is None:
-        return None, None
-    lines, body = split_frontmatter(text)
-    if not lines:
-        return None, None
-    meta = parse_frontmatter_lines(lines)
-    if not schema_version_compatible(meta, path=path):
-        return None, None
-    return meta, body
 
 
 def _iter_daily_task_records():
@@ -104,15 +90,7 @@ def _iter_daily_task_records():
     the type-filter parts; the date-filter + tuple-shape part lives in
     ``aha_md.iter_task_difficulties_in_range``.
     """
-    root = _daily_tasks_dir()
-    if not root.is_dir():
-        return
-    for path in iter_record_paths(root):
-        meta, body = _parse_frontmatter_with_body(path)
-        if meta is None or not body:
-            continue
-        if meta.get("type") and meta.get("type") != "task":
-            continue
+    for path, meta, body in scan_record_dir("daily.task", _daily_tasks_dir(), type_filter="task"):
         yield path, meta, body
 
 
@@ -142,10 +120,6 @@ def _record_date_for_range(meta):
     return None
 
 
-def _new_health_bucket():
-    return {"present": 0, "out_of_range": 0, "parse_error": 0, "missing": False}
-
-
 def load_records(source, start, end):
     """Yield (source_label, sub_type, meta, body, path) for records in range.
 
@@ -155,50 +129,56 @@ def load_records(source, start, end):
     """
     out = []
     health = {
-        "idea": _new_health_bucket(),
-        "dao": _new_health_bucket(),
-        "daily.task": _new_health_bucket(),
-        "daily.log": _new_health_bucket(),
+        "idea": new_scan_health_bucket(),
+        "dao": new_scan_health_bucket(),
+        "daily.task": new_scan_health_bucket(),
+        "daily.log": new_scan_health_bucket(),
+        "daily.checkin": new_scan_health_bucket(),
+        "daily.review": new_scan_health_bucket(),
     }
 
-    def scan_source(label, root, *, type_filter=None, date_extractor=None):
-        if not root.is_dir():
-            health[label]["missing"] = True
-            return
-        for path in iter_record_paths(root):
-            meta, body = _parse_frontmatter_with_body(path)
-            if meta is None:
-                health[label]["parse_error"] += 1
-                continue
-            if type_filter and meta.get("type") and meta.get("type") != type_filter:
-                continue
-            if date_extractor is not None:
-                if not date_extractor(meta):
-                    health[label]["out_of_range"] += 1
-                    continue
-            health[label]["present"] += 1
-            out.append((label, type_filter or label, meta, body, path))
+    def scan_source(label, root, *, sub_type, type_filter=None, include=None):
+        for path, meta, body in scan_record_dir(
+            label, root, health=health, type_filter=type_filter, include=include,
+        ):
+            out.append((label, sub_type, meta, body, path))
 
     if source in ("idea", "all"):
         scan_source(
             "idea", _idea_dir(),
-            date_extractor=lambda m: in_range(_record_date_for_range(m), start, end),
+            sub_type="idea",
+            include=lambda m: in_range(_record_date_for_range(m), start, end),
         )
     if source in ("dao", "all"):
         scan_source(
             "dao", _dao_dir(),
-            date_extractor=lambda m: in_range(_record_date_for_range(m), start, end),
+            sub_type="dao",
+            include=lambda m: in_range(_record_date_for_range(m), start, end),
         )
     if source in ("daily", "all"):
         scan_source(
             "daily.task", _daily_tasks_dir(),
+            sub_type="task",
             type_filter="task",
-            date_extractor=lambda m: task_in_period(m, start, end),
+            include=lambda m: task_in_period(m, start, end),
         )
         scan_source(
             "daily.log", _daily_logs_dir(),
+            sub_type="log",
             type_filter="log",
-            date_extractor=lambda m: in_range(parse_date_str(m.get("date", "")), start, end),
+            include=lambda m: in_range(parse_date_str(m.get("date", "")), start, end),
+        )
+        scan_source(
+            "daily.checkin", _daily_checkins_dir(),
+            sub_type="checkin",
+            include=lambda m: bool(m.get("checkin_id") or m.get("parent_task_id"))
+            and in_range(_record_date_for_range(m), start, end),
+        )
+        scan_source(
+            "daily.review", _daily_reviews_dir(),
+            sub_type="review",
+            type_filter="review",
+            include=lambda m: in_range(_record_date_for_range(m), start, end),
         )
     return out, health
 
@@ -212,8 +192,8 @@ def _render_source_health(health):
     """
     rows = ["| source | present | out-of-range | parse-error | root missing |",
             "|---|---|---|---|---|"]
-    for source in ("idea", "dao", "daily.task", "daily.log"):
-        h = health.get(source, _new_health_bucket())
+    for source in ("idea", "dao", "daily.task", "daily.log", "daily.checkin", "daily.review"):
+        h = health.get(source, new_scan_health_bucket())
         rows.append(
             f"| {source} | {h['present']} | {h['out_of_range']} | "
             f"{h['parse_error']} | {'yes' if h['missing'] else 'no'} |"
@@ -226,14 +206,6 @@ def _render_source_health(health):
     rows.append(f"_Host TZ: {tz_str}_")
     return "\n".join(rows)
 
-
-def _health_has_issues(health):
-    for h in health.values():
-        if h.get("missing") or h.get("parse_error", 0) > 0:
-            return True
-    return False
-
-
 def _resolve_period(args):
     anchor = parse_date_str(args.date) if args.date else local_now().date()
     if anchor is None:
@@ -245,39 +217,49 @@ def _resolve_period(args):
 def aggregate(args):
     start, end = _resolve_period(args)
     records, health = load_records(args.source, start, end)
-    if getattr(args, "strict", False) and _health_has_issues(health):
-        for source, h in health.items():
-            if h["missing"] or h["parse_error"]:
-                sys.stderr.write(
-                    f"strict: {source} — missing={h['missing']} "
-                    f"parse_error={h['parse_error']}\n"
-                )
-        raise SystemExit(2)
+    if getattr(args, "strict", False):
+        enforce_scan_health(health)
     for source, sub_type, meta, body, path in records:
-        if source == "idea":
-            status = meta.get("status", "")
-            date_field = meta.get("updated_at", "")
-        elif source == "dao":
-            status = "-"
-            date_field = meta.get("updated_at", "")
-        elif source == "daily.task":
-            status = meta.get("status", "")
-            date_field = meta.get("due_at", "") or meta.get("updated_at", "")
-        else:  # daily.log
-            status = "-"
-            date_field = meta.get("date", "")
         title = title_from_body(body)
         tags = parse_tags_field(meta.get("tags", ""))
-        print("\t".join([
+        print(tsv_row([
             source,
             sub_type,
-            status or "-",
-            date_field or "-",
-            meta.get("id", "") or f"log-{meta.get('date', '')}",
+            _record_status(source, meta),
+            _record_date_field(source, meta),
+            _record_id(source, meta, path),
             str(path),
             title,
             ",".join(tags),
         ]))
+
+
+def _record_status(source, meta):
+    if source in ("idea", "daily.task"):
+        return meta.get("status", "") or "-"
+    return "-"
+
+
+def _record_date_field(source, meta):
+    if source in ("idea", "dao"):
+        return meta.get("updated_at", "") or "-"
+    if source == "daily.task":
+        return meta.get("due_at", "") or meta.get("updated_at", "") or "-"
+    if source == "daily.log":
+        return meta.get("date", "") or "-"
+    if source in ("daily.checkin", "daily.review"):
+        return meta.get("created_at", "") or meta.get("range_start", "") or "-"
+    return "-"
+
+
+def _record_id(source, meta, path):
+    if source == "daily.log":
+        return f"log-{meta.get('date', '')}" if meta.get("date") else Path(path).stem
+    if source == "daily.checkin":
+        return meta.get("checkin_id", "") or Path(path).stem
+    if source == "daily.review":
+        return meta.get("review_id", "") or Path(path).stem
+    return meta.get("id", "") or Path(path).stem
 
 
 def _records_with_tags(records):
@@ -285,7 +267,7 @@ def _records_with_tags(records):
     for source, _sub_type, meta, _body, path in records:
         tags = parse_tags_field(meta.get("tags", ""))
         if tags:
-            record_id = meta.get("id") or meta.get("date") or Path(path).stem
+            record_id = _record_id(source, meta, path)
             out.append((source, record_id, tags))
     return out
 
@@ -293,14 +275,8 @@ def _records_with_tags(records):
 def tags(args):
     start, end = _resolve_period(args)
     records, health = load_records(args.source, start, end)
-    if getattr(args, "strict", False) and _health_has_issues(health):
-        for source, h in health.items():
-            if h["missing"] or h["parse_error"]:
-                sys.stderr.write(
-                    f"strict: {source} — missing={h['missing']} "
-                    f"parse_error={h['parse_error']}\n"
-                )
-        raise SystemExit(2)
+    if getattr(args, "strict", False):
+        enforce_scan_health(health)
     tagged = _records_with_tags(records)
 
     freq = {}
@@ -322,7 +298,7 @@ def tags(args):
 
     freq_lines = sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))
     for tag, count in freq_lines:
-        print(f"{tag}\t{count}\t{','.join(sorted(sources_for_tag[tag]))}")
+        print(tsv_row([tag, count, ",".join(sorted(sources_for_tag[tag]))]))
 
     pair_rows = [
         (pair, count) for pair, count in co_pairs.items() if count >= args.min_count
@@ -332,7 +308,7 @@ def tags(args):
         print()
         for (a, b), count in pair_rows:
             # source_records_csv = list of <source>:<id> that carry both tags
-            print(f"{a}\t{b}\t{count}\t{','.join(sorted(records_for_pair[(a, b)]))}")
+            print(tsv_row([a, b, count, ",".join(sorted(records_for_pair[(a, b)]))]))
 
 
 def difficulties(args):
@@ -340,12 +316,19 @@ def difficulties(args):
     for d, task_id, path, title, text in iter_task_difficulties_in_range(
         _iter_daily_task_records(), start, end
     ):
-        print("\t".join([d.isoformat(), task_id, str(path), title, text]))
+        print(tsv_row([d.isoformat(), task_id, str(path), title, text]))
 
 
 def _render_snapshot(records, start, end):
     lines = [UNTRUSTED_CONTENT_BANNER, ""]
-    by_source = {"idea": [], "dao": [], "daily.task": [], "daily.log": []}
+    by_source = {
+        "idea": [],
+        "dao": [],
+        "daily.task": [],
+        "daily.log": [],
+        "daily.checkin": [],
+        "daily.review": [],
+    }
     for rec in records:
         source = rec[0]
         if source in by_source:
@@ -410,6 +393,35 @@ def _render_snapshot(records, start, end):
         lines.append("- (none in range)")
     lines.append("")
 
+    # daily.checkins
+    checkins_in = by_source["daily.checkin"]
+    lines.append(f"### daily.checkins ({len(checkins_in)})")
+    if checkins_in:
+        for _, _, meta, body, _ in checkins_in:
+            created = meta.get("created_at", "")[:10] or "?"
+            parent = meta.get("parent_task_id", "") or "-"
+            lines.append(
+                f"- {created} | parent {parent} | "
+                f"{meta.get('checkin_id', '')} — {render_untrusted_inline(title_from_body(body))}"
+            )
+    else:
+        lines.append("- (none in range)")
+    lines.append("")
+
+    # daily.reviews
+    reviews_in = by_source["daily.review"]
+    lines.append(f"### daily.reviews ({len(reviews_in)})")
+    if reviews_in:
+        for _, _, meta, body, _ in reviews_in:
+            range_label = f"{meta.get('range_start', '?')}..{meta.get('range_end', '?')}"
+            lines.append(
+                f"- {meta.get('period', '?')} | {range_label} | "
+                f"{meta.get('review_id', '')} — {render_untrusted_inline(title_from_body(body))}"
+            )
+    else:
+        lines.append("- (none in range)")
+    lines.append("")
+
     # difficulties (re-walk; cheap)
     diffs = _collect_difficulties(start, end)
     lines.append(f"### daily.difficulties ({len(diffs)})")
@@ -455,14 +467,8 @@ def save(args):
     reflect_id, path = unique_path(root, f"reflect-{pid}")
 
     records, health = load_records("all", start, end)
-    if getattr(args, "strict", False) and _health_has_issues(health):
-        for source, h in health.items():
-            if h["missing"] or h["parse_error"]:
-                sys.stderr.write(
-                    f"strict: {source} — missing={h['missing']} "
-                    f"parse_error={h['parse_error']}\n"
-                )
-        raise SystemExit(2)
+    if getattr(args, "strict", False):
+        enforce_scan_health(health)
     snapshot_md, _diffs = _render_snapshot(records, start, end)
     tag_summary = _render_tag_summary(records)
     source_health = _render_source_health(health)
