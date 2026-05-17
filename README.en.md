@@ -65,7 +65,7 @@ Capture sudden ideas, timestamp them, classify them, and incubate them into Mark
 - **Trigger**: `/idea` or any request to record / review / continue / kill an idea.
 - **Storage**: `./aha-workspace/idea/idea-md/<idea-id>.md` (one file per idea, raw text never overwritten).
 - **Lifecycle**: `inbox → researching → planning → completed` (with `paused` / `killed` as terminal options).
-- **CLI**: `skills/idea/scripts/idea_md.py` provides deterministic `capture`, `update`, and `scan` subcommands.
+- **CLI**: `skills/idea/scripts/idea_md.py` provides deterministic `capture`, `update`, `list`, and `scan` subcommands.
 
 See [`skills/idea/SKILL.md`](skills/idea/SKILL.md) for the full workflow, Markdown shape, and scheduled-review pattern.
 
@@ -79,6 +79,9 @@ python3 skills/idea/scripts/idea_md.py capture \
   --status researching \
   --category product \
   --tags "idea,research"
+
+# List all ideas (full inventory, unlike scan's due/stale filter)
+python3 skills/idea/scripts/idea_md.py list --status inbox
 
 # List stale or due-for-review ideas
 python3 skills/idea/scripts/idea_md.py scan --stale-days 7 --include-paused
@@ -99,7 +102,7 @@ Capture personal insights verbatim, polish them into a refined sediment, optiona
 - **Storage**:
   - Main records: `./aha-workspace/dao/dao-md/<dao-id>.md` (raw text never overwritten; `## Refined` rotated; `## Refinement Log` archives prior versions).
   - Discussion transcripts: `./aha-workspace/dao/sessions/<dao-id>-session-NNN.md` (linked from main file with a 1-3 sentence takeaway).
-- **Actions** (no forced status workflow): `capture`, `refine`, `discuss`, `scan`, `update`.
+- **Actions** (no forced status workflow): `capture`, `refine`, `discuss`, `list`, `scan`, `update`.
 - **CLI**: `skills/dao/scripts/dao_md.py`.
 
 See [`skills/dao/SKILL.md`](skills/dao/SKILL.md) for triggers, Markdown shape, and the scheduled-review pattern.
@@ -122,6 +125,9 @@ python3 skills/dao/scripts/dao_md.py discuss "$F" \
   --conversation "user: ...\nagent: ..." \
   --takeaway "Distinguish fear (points at growth) from aversion (points at self-protection)."
 
+# List all dao records (full inventory)
+python3 skills/dao/scripts/dao_md.py list --sort updated
+
 # Preview 3 random old daos (read-only by default)
 python3 skills/dao/scripts/dao_md.py scan --mode random --limit 3
 # If the surfacing itself should count as a review, mark it explicitly
@@ -138,7 +144,7 @@ Manage important todos with explicit due dates and postponements, log stage-by-s
   - Daily logs: `./aha-workspace/daily/logs/log-YYYY-MM-DD.md` (one file per day, multiple `## HH:MM — title` entries appended within).
   - Check-in transcripts: `./aha-workspace/daily/check-ins/<task-id>-checkin-NNN.md`.
   - Reviews (written by `daily_md.py review`, write-once, mirrors `reflect.save`): `./aha-workspace/daily/reviews/review-<period-id>.md`.
-- **Actions**: `task` / `update` / `checkin` / `log` / `scan` / `review` (no forced status workflow).
+- **Actions**: `task` / `update` / `checkin` / `log` / `list` / `scan` / `review` (no forced status workflow).
 - **CLI**: `skills/daily/scripts/daily_md.py`.
 
 See [`skills/daily/SKILL.md`](skills/daily/SKILL.md) for the overdue-reminder conversation flow, check-in pattern, and review skeleton.
@@ -170,6 +176,9 @@ python3 skills/daily/scripts/daily_md.py log \
 
 # What's overdue right now?
 python3 skills/daily/scripts/daily_md.py scan --mode overdue
+
+# List the full task / log / check-in / review inventory
+python3 skills/daily/scripts/daily_md.py list --type all
 
 # Pull this week's tasks + log entries for a review
 python3 skills/daily/scripts/daily_md.py scan --mode period --period week --type all
@@ -223,21 +232,21 @@ aha-skills/
     │   ├── SKILL.md            # Skill definition (frontmatter + workflow)
     │   ├── references/         # Reference material the skill may load
     │   ├── scripts/
-    │   │   └── idea_md.py      # CLI: capture / update / scan
+    │   │   └── idea_md.py      # CLI: capture / update / list / scan
     │   └── tests/
     │       └── test_idea_md.py # unittest suite for idea_md.py
     ├── dao/
     │   ├── SKILL.md
     │   ├── references/
     │   ├── scripts/
-    │   │   └── dao_md.py        # CLI: capture / refine / discuss / scan / update
+    │   │   └── dao_md.py        # CLI: capture / refine / discuss / list / scan / update
     │   └── tests/
     │       └── test_dao_md.py
     ├── daily/
     │   ├── SKILL.md
     │   ├── references/          # 5 sub-flows: task-capture / overdue-flow / checkin-flow / log-flow / review-flow
     │   ├── scripts/
-    │   │   └── daily_md.py      # CLI: task / update / checkin / log / scan / review
+    │   │   └── daily_md.py      # CLI: task / update / checkin / log / list / scan / review
     │   └── tests/
     │       └── test_daily_md.py
     └── reflect/

@@ -317,6 +317,63 @@ def scan(args):
         )
 
 
+def _record_date_sort_key(meta, key):
+    parsed = parse_dt(meta.get(key))
+    if parsed is None:
+        return ""
+    return parsed.isoformat()
+
+
+def list_records(args):
+    root = default_dao_dir()
+    ensure_dir(root)
+
+    rows = []
+    for path in iter_record_paths(root):
+        text = read_text_or_warn(path)
+        if text is None:
+            continue
+        fm_lines, body = split_frontmatter(text)
+        if not fm_lines:
+            continue
+        meta = parse_frontmatter_lines(fm_lines)
+        if not schema_version_compatible(meta, path=path):
+            continue
+        if not meta.get("id"):
+            continue
+        tags = parse_tags_field(meta.get("tags", ""))
+        if args.tag and args.tag not in tags:
+            continue
+        if args.category and args.category != meta.get("primary_category", ""):
+            continue
+        rows.append((path, meta, body, tags))
+
+    sort_key = args.sort
+    if sort_key == "created":
+        rows.sort(key=lambda r: (_record_date_sort_key(r[1], "created_at"), str(r[0])), reverse=True)
+    elif sort_key == "title":
+        rows.sort(key=lambda r: (title_from_body(r[2]).lower(), str(r[0])))
+    elif sort_key == "path":
+        rows.sort(key=lambda r: str(r[0]))
+    else:
+        rows.sort(key=lambda r: (_record_date_sort_key(r[1], "updated_at"), str(r[0])), reverse=True)
+
+    if args.limit and args.limit > 0:
+        rows = rows[: args.limit]
+
+    for path, meta, body, tags in rows:
+        print("\t".join([
+            "dao",
+            "dao",
+            "-",
+            meta.get("updated_at", "") or "-",
+            meta.get("id", "") or path.stem,
+            str(path),
+            title_from_body(body),
+            ",".join(tags),
+        ]))
+
+
 def update(args):
     path = Path(args.file).expanduser().resolve()
     assert_record_path(path, "dao", subdir="dao-md")
@@ -370,7 +427,7 @@ def _bump_review(lines, meta, now):
 
 def main():
     parser = argparse.ArgumentParser(
-        description=f"Capture, refine, discuss and review Markdown dao records in {DAO_DIR_DISPLAY}."
+        description=f"Capture, refine, discuss, list, and review Markdown dao records in {DAO_DIR_DISPLAY}."
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -430,6 +487,19 @@ def main():
              "override that forces read-only even if --mark-reviewed is set.)",
     )
     p_scan.set_defaults(func=scan)
+
+    p_list = sub.add_parser(
+        "list",
+        help="List all dao records; read-only.",
+    )
+    p_list.add_argument("--tag", help="Filter by tag.")
+    p_list.add_argument("--category", help="Filter by primary_category.")
+    p_list.add_argument(
+        "--sort", choices=["updated", "created", "title", "path"], default="updated",
+        help="Sort rows (default: updated desc).",
+    )
+    p_list.add_argument("--limit", type=int, default=0, help="Max rows (0 = unlimited).")
+    p_list.set_defaults(func=list_records)
 
     p_update = sub.add_parser("update", help="Update dao frontmatter and append notes.")
     p_update.add_argument("file", help="Markdown dao file to update.")

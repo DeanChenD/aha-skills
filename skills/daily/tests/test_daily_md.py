@@ -499,6 +499,49 @@ class DailyMarkdownCliTest(unittest.TestCase):
             self.assertEqual(1, len(lines))
             self.assertIn("alpha", lines[0])
 
+    def test_list_returns_all_daily_record_types(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            today = date.today().isoformat()
+            task_result = run_cli(
+                "task",
+                "--text",
+                "listable task",
+                "--due",
+                today,
+                "--tags",
+                "work",
+                "--category",
+                "ops",
+                cwd=tmp,
+            )
+            task_path = Path(task_result.stdout.strip())
+            run_cli("log", "--text", "listable log", "--date", today, "--tags", "mood", cwd=tmp)
+            run_cli(
+                "checkin",
+                str(task_path),
+                "--topic",
+                "progress",
+                "--conversation",
+                "user: blocked\nagent: next step",
+                "--takeaway",
+                "keep moving",
+                cwd=tmp,
+            )
+            run_cli("review", "--period", "week", "--date", today, cwd=tmp)
+
+            listing = run_cli("list", "--sort", "path", cwd=tmp)
+            lines = [line for line in listing.stdout.strip().splitlines() if line]
+            prefixes = {line.split("\t", 1)[0] for line in lines}
+            self.assertEqual(
+                {"daily.task", "daily.log", "daily.checkin", "daily.review"},
+                prefixes,
+            )
+
+            task_only = run_cli("list", "--type", "task", "--tag", "work", cwd=tmp)
+            task_lines = [line for line in task_only.stdout.strip().splitlines() if line]
+            self.assertEqual(1, len(task_lines))
+            self.assertTrue(task_lines[0].startswith("daily.task\ttask\tpending\t"))
+            self.assertIn("listable task", task_lines[0])
 
     def test_task_with_garbage_due_exits_non_zero(self):
         """parse_due rejects malformed dates with a clear error rather than

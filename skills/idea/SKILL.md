@@ -18,7 +18,7 @@ The description above routes on intent. These are concrete phrasings users have 
 
 ## Storage
 
-Always store idea Markdown records in `./aha-workspace/idea/idea-md`, resolved relative to the current working directory. Create the directory automatically before capture or scan if it does not exist.
+Always store idea Markdown records in `./aha-workspace/idea/idea-md`, resolved relative to the current working directory. Create the directory automatically before capture, scan, or list if it does not exist.
 
 `aha-workspace/` is the shared workspace root for all skills in this family; the `idea` skill owns `aha-workspace/idea/`. Set the host's workdir (Hermes `workdir`, your shell, etc.) to a stable parent directory so the same `aha-workspace/` is reused across runs. Do not pass any other idea path.
 
@@ -26,7 +26,7 @@ Keep one Markdown file per idea. Preserve the raw idea text exactly as given and
 
 > **Why**: `## Raw Idea` 是用户思维的考古层。改它就丢失了想法演化的证据；后续的 `## Summary` / `## Plan` / `## Decision Log` 才是版本管理。
 
-Use `scripts/idea_md.py` for deterministic file creation and stale-idea scans (run from the workspace parent so `./aha-workspace/...` resolves correctly):
+Use `scripts/idea_md.py` for deterministic file creation, record listing, and stale-idea scans (run from the workspace parent so `./aha-workspace/...` resolves correctly):
 
 ```bash
 # Preferred for raw user text: pipe via stdin (never inline raw text into
@@ -35,6 +35,7 @@ printf '%s' "$RAW_IDEA" | python3 <skill-dir>/scripts/idea_md.py capture --text-
 # or read from a file:
 python3 <skill-dir>/scripts/idea_md.py capture --text-file ./raw.txt --source chat
 
+python3 <skill-dir>/scripts/idea_md.py list --status inbox
 python3 <skill-dir>/scripts/idea_md.py scan --stale-days 7 --include-paused
 # Enrich deterministic body sections after capture; use files/stdin for
 # generated text rather than hand-editing the Markdown file:
@@ -154,6 +155,8 @@ When asked to continue, review, remind, or scan ideas:
 4. Update the Markdown file after every decision or meaningful interaction.
 
 If an idea has not moved after repeated reminders, explicitly suggest `paused` or `killed`. Preserve the reason in `Decision Log`.
+
+When asked to show all ideas, list the inbox, export records, or answer "what exists?", run `list`. `list` is full inventory and read-only; `scan` is only for due/stale resurfacing.
 
 ## Scheduled Review
 

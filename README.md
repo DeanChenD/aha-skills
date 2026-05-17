@@ -65,7 +65,7 @@
 - **触发**：`/idea`，或任何记录 / 回顾 / 推进 / 终止某个想法的请求。
 - **存储**：`./aha-workspace/idea/idea-md/<idea-id>.md`（每个想法一个文件，原文永不覆盖）。
 - **生命周期**：`inbox → researching → planning → completed`（外加 `paused` / `killed` 两个终止态）。
-- **CLI**：`skills/idea/scripts/idea_md.py` 提供确定性的 `capture`、`update`、`scan` 子命令。
+- **CLI**：`skills/idea/scripts/idea_md.py` 提供确定性的 `capture`、`update`、`list`、`scan` 子命令。
 
 完整工作流、Markdown 结构和定时回顾模式见 [`skills/idea/SKILL.md`](skills/idea/SKILL.md)。
 
@@ -79,6 +79,9 @@ python3 skills/idea/scripts/idea_md.py capture \
   --status researching \
   --category product \
   --tags "idea,research"
+
+# 列出所有想法（全量清单，区别于 scan 的到期 / 陈旧筛选）
+python3 skills/idea/scripts/idea_md.py list --status inbox
 
 # 列出陈旧或到期需回顾的想法
 python3 skills/idea/scripts/idea_md.py scan --stale-days 7 --include-paused
@@ -99,7 +102,7 @@ python3 skills/idea/scripts/idea_md.py update \
 - **存储**：
   - 主记录：`./aha-workspace/dao/dao-md/<dao-id>.md`（原文永不覆盖；`## Refined` 滚动更新；`## Refinement Log` 归档历史版本）。
   - 探讨记录：`./aha-workspace/dao/sessions/<dao-id>-session-NNN.md`（主文件以 1-3 句 takeaway 链接到此）。
-- **动作**（不强加状态流转）：`capture`、`refine`、`discuss`、`scan`、`update`。
+- **动作**（不强加状态流转）：`capture`、`refine`、`discuss`、`list`、`scan`、`update`。
 - **CLI**：`skills/dao/scripts/dao_md.py`。
 
 触发条件、Markdown 结构和定时回顾模式见 [`skills/dao/SKILL.md`](skills/dao/SKILL.md)。
@@ -122,6 +125,9 @@ python3 skills/dao/scripts/dao_md.py discuss "$F" \
   --conversation "user: ...\nagent: ..." \
   --takeaway "Distinguish fear (points at growth) from aversion (points at self-protection)."
 
+# 列出所有感悟（全量清单）
+python3 skills/dao/scripts/dao_md.py list --sort updated
+
 # 预览 3 条旧感悟（默认不改 review_count）
 python3 skills/dao/scripts/dao_md.py scan --mode random --limit 3
 # 如果这次 surfacing 本身就要记为一次回顾，再显式标记
@@ -138,7 +144,7 @@ python3 skills/dao/scripts/dao_md.py scan --mode least-reviewed --tag courage --
   - 日志：`./aha-workspace/daily/logs/log-YYYY-MM-DD.md`（每天一个文件，多个 `## HH:MM — title` 子段追加在内）。
   - Check-in 记录：`./aha-workspace/daily/check-ins/<task-id>-checkin-NNN.md`。
   - 复盘（`daily_md.py review` 写出，与 reflect.save 同款 write-once 纪律）：`./aha-workspace/daily/reviews/review-<period-id>.md`。
-- **动作**：`task` / `update` / `checkin` / `log` / `scan` / `review`（不强加状态流转）。
+- **动作**：`task` / `update` / `checkin` / `log` / `list` / `scan` / `review`（不强加状态流转）。
 - **CLI**：`skills/daily/scripts/daily_md.py`。
 
 过期任务的会话流程、check-in 模式和复盘骨架见 [`skills/daily/SKILL.md`](skills/daily/SKILL.md)。
@@ -170,6 +176,9 @@ python3 skills/daily/scripts/daily_md.py log \
 
 # 当前有什么 overdue
 python3 skills/daily/scripts/daily_md.py scan --mode overdue
+
+# 列出 task / log / check-in / review 全量清单
+python3 skills/daily/scripts/daily_md.py list --type all
 
 # 拉本周的任务 + 日志，准备复盘
 python3 skills/daily/scripts/daily_md.py scan --mode period --period week --type all
@@ -222,21 +231,21 @@ aha-skills/
     │   ├── SKILL.md            # Skill 定义（frontmatter + 工作流）
     │   ├── references/         # skill 按需加载的参考资料
     │   ├── scripts/
-    │   │   └── idea_md.py      # CLI：capture / update / scan
+    │   │   └── idea_md.py      # CLI：capture / update / list / scan
     │   └── tests/
     │       └── test_idea_md.py # idea_md.py 的 unittest 套件
     ├── dao/
     │   ├── SKILL.md
     │   ├── references/
     │   ├── scripts/
-    │   │   └── dao_md.py        # CLI：capture / refine / discuss / scan / update
+    │   │   └── dao_md.py        # CLI：capture / refine / discuss / list / scan / update
     │   └── tests/
     │       └── test_dao_md.py
     ├── daily/
     │   ├── SKILL.md
     │   ├── references/          # 5 个子工作流：task-capture / overdue-flow / checkin-flow / log-flow / review-flow
     │   ├── scripts/
-    │   │   └── daily_md.py      # CLI：task / update / checkin / log / scan / review
+    │   │   └── daily_md.py      # CLI：task / update / checkin / log / list / scan / review
     │   └── tests/
     │       └── test_daily_md.py
     └── reflect/

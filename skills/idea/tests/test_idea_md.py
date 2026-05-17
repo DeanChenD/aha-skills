@@ -247,6 +247,33 @@ class IdeaMarkdownCliTest(unittest.TestCase):
             self.assertIn("researching", scan.stdout)
             self.assertIn(str(path), scan.stdout)
 
+    def test_list_returns_all_ideas_not_only_due_or_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli("capture", "--text", "plain inbox", "--status", "inbox", cwd=tmp)
+            run_cli("capture", "--text", "paused idea", "--status", "paused", cwd=tmp)
+            run_cli(
+                "capture",
+                "--text",
+                "completed idea",
+                "--status",
+                "completed",
+                "--tags",
+                "archive",
+                cwd=tmp,
+            )
+
+            listing = run_cli("list", "--sort", "title", cwd=tmp)
+            lines = [line for line in listing.stdout.strip().splitlines() if line]
+            statuses = {line.split("\t")[2] for line in lines}
+            self.assertEqual(3, len(lines))
+            self.assertEqual({"inbox", "paused", "completed"}, statuses)
+            self.assertTrue(all(line.startswith("idea\tidea\t") for line in lines))
+
+            paused = run_cli("list", "--status", "paused", cwd=tmp)
+            paused_lines = [line for line in paused.stdout.strip().splitlines() if line]
+            self.assertEqual(1, len(paused_lines))
+            self.assertIn("paused idea", paused_lines[0])
+
     def test_scan_with_mark_prompted_then_cooldown_skips(self):
         """P1#16: scan is read-only by default; the scheduler opts into
         last_prompted_at stamping with --mark-prompted. Subsequent scan

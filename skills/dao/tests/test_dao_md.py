@@ -244,6 +244,31 @@ class DaoMarkdownCliTest(unittest.TestCase):
             self.assertEqual(1, len(lines))
             self.assertIn("courage matters", lines[0])
 
+    def test_list_returns_all_dao_records_and_filters_by_tag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_cli(
+                "capture",
+                "--text",
+                "courage matters",
+                "--tags",
+                "courage",
+                "--category",
+                "life",
+                cwd=tmp,
+            )
+            run_cli("capture", "--text", "patience also matters", "--tags", "patience", cwd=tmp)
+
+            listing = run_cli("list", "--sort", "title", cwd=tmp)
+            lines = [line for line in listing.stdout.strip().splitlines() if line]
+            self.assertEqual(2, len(lines))
+            self.assertTrue(all(line.startswith("dao\tdao\t-\t") for line in lines))
+
+            courage = run_cli("list", "--tag", "courage", cwd=tmp)
+            courage_lines = [line for line in courage.stdout.strip().splitlines() if line]
+            self.assertEqual(1, len(courage_lines))
+            self.assertIn("courage matters", courage_lines[0])
+            self.assertIn("courage", courage_lines[0])
+
     def test_update_appends_note_and_changes_tags(self):
         with tempfile.TemporaryDirectory() as tmp:
             captured = run_cli("capture", "--text", "before update", cwd=tmp)

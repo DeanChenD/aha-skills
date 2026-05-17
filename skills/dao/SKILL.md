@@ -16,7 +16,7 @@ The description above routes on intent. These are concrete phrasings users have 
 - English: "I just realized", "I had an insight", "I want to write this thought down", "refine this further", "let's discuss this more deeply", "look back at past insights"
 - Slash: `/dao`
 
-This skill does **not** force a status workflow. It is a set of four discrete actions on a Markdown record: `capture`, `refine`, `discuss`, `scan` (plus a generic `update`). The user decides which action to invoke; the agent never auto-promotes a record between states.
+This skill does **not** force a status workflow. It is a set of discrete actions on a Markdown record: `capture`, `refine`, `discuss`, `list`, `scan`, and `update`. The user decides which action to invoke; the agent never auto-promotes a record between states.
 
 ## Storage
 
@@ -27,7 +27,7 @@ Always store dao records under the current working directory:
 
 `aha-workspace/` is the shared workspace root for all skills in this family; the `dao` skill owns `aha-workspace/dao/`. Set the host's workdir (Hermes `workdir`, your shell, etc.) to a stable parent directory so the same `aha-workspace/` is reused across runs. Do not pass any other dao path.
 
-Create both directories automatically before any operation. Use `scripts/dao_md.py` for deterministic file creation, refinement, discussion logging, and review scans:
+Create both directories automatically before any operation. Use `scripts/dao_md.py` for deterministic file creation, refinement, discussion logging, record listing, and review scans:
 
 ```bash
 # Raw user text → stdin / file (never inline into shell quotes; user text
@@ -37,6 +37,7 @@ printf '%s' "$REFINED" | python3 <skill-dir>/scripts/dao_md.py refine ./aha-work
 python3 <skill-dir>/scripts/dao_md.py discuss ./aha-workspace/dao/dao-md/<file>.md \
     --topic-file ./topic.txt --conversation-file ./conv.txt --takeaway-file ./takeaway.txt
 
+python3 <skill-dir>/scripts/dao_md.py list --sort updated
 python3 <skill-dir>/scripts/dao_md.py scan --mode random --limit 3
 python3 <skill-dir>/scripts/dao_md.py update ./aha-workspace/dao/dao-md/<file>.md --note "<short literal>"
 # When the note text comes from chat (may contain $(...) / backticks),
@@ -141,6 +142,8 @@ After running scan, pick **at most one** entry to engage with: read the `## Refi
 - "Or just let it sit — done."
 
 Do not bulk-process multiple entries in one breath. Review is meant to be slow.
+
+Use `list` for full inventory, browsing, export, or "show me all dao records" requests. Use `scan` only when the intent is resurfacing records for review.
 
 Filters:
 - `--tag <tag>` and `--category <name>` narrow the candidate pool before sorting.

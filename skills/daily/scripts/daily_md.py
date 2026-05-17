@@ -72,6 +72,7 @@ SCAN_MODES = (
 )
 PERIODS = ("day", "week", "month")
 SCAN_TYPES = ("task", "log", "all")
+LIST_TYPES = ("task", "log", "checkin", "review", "all")
 
 
 def default_tasks_dir():
@@ -510,6 +511,46 @@ def _load_log_records():
     return records
 
 
+def _load_checkin_records():
+    root = default_checkins_dir()
+    ensure_dir(root)
+    records = []
+    for path in iter_record_paths(root):
+        text = read_text_or_warn(path)
+        if text is None:
+            continue
+        fm_lines, body = split_frontmatter(text)
+        if not fm_lines:
+            continue
+        meta = parse_frontmatter_lines(fm_lines)
+        if not schema_version_compatible(meta, path=path):
+            continue
+        if not (meta.get("checkin_id") or meta.get("parent_task_id")):
+            continue
+        records.append((path, meta, body))
+    return records
+
+
+def _load_review_records():
+    root = default_reviews_dir()
+    ensure_dir(root)
+    records = []
+    for path in iter_record_paths(root):
+        text = read_text_or_warn(path)
+        if text is None:
+            continue
+        fm_lines, body = split_frontmatter(text)
+        if not fm_lines:
+            continue
+        meta = parse_frontmatter_lines(fm_lines)
+        if not schema_version_compatible(meta, path=path):
+            continue
+        if meta.get("type") and meta.get("type") != "review":
+            continue
+        records.append((path, meta, body))
+    return records
+
+
 def _common_filters(meta, args):
     tags = parse_tags_field(meta.get("tags", ""))
     if args.tag and args.tag not in tags:
@@ -645,6 +686,121 @@ def scan(args):
         print(line)
 
 
+def _row_date_sort_value(value):
+    if not value or value == "-":
+        return ""
+    parsed = parse_dt(value)
+    if parsed is None:
+        return value
+    return parsed.isoformat()
+
+
+def _sort_list_rows(rows, sort_key):
+    if sort_key == "title":
+        return sorted(rows, key=lambda r: (r[6].lower(), r[5]))
+    if sort_key == "path":
+        return sorted(rows, key=lambda r: r[5])
+    return sorted(rows, key=lambda r: (r[8], r[5]), reverse=True)
+
+
+def _list_filters_match(kind, meta, tags, args):
+    if args.status:
+        if kind != "task" or meta.get("status") != args.status:
+            return False
+    if args.priority:
+        if kind != "task" or meta.get("priority") != args.priority:
+            return False
+    if args.category and args.category != meta.get("primary_category", ""):
+        return False
+    if args.tag and args.tag not in tags:
+        return False
+    return True
+
+
+def list_records(args):
+    rows = []
+
+    if args.type in ("task", "all"):
+        for path, meta, body in _load_task_records():
+            tags = parse_tags_field(meta.get("tags", ""))
+            if not _list_filters_match("task", meta, tags, args):
+                continue
+            row_date = meta.get("updated_at") or meta.get("due_at") or "-"
+            rows.append((
+                "daily.task",
+                "task",
+                meta.get("status", "") or "-",
+                row_date,
+                meta.get("id", "") or path.stem,
+                str(path),
+                title_from_body(body),
+                ",".join(tags),
+                _row_date_sort_value(row_date),
+            ))
+
+    if args.type in ("log", "all"):
+        for path, meta, body in _load_log_records():
+            tags = parse_tags_field(meta.get("tags", ""))
+            if not _list_filters_match("log", meta, tags, args):
+                continue
+            row_date = meta.get("date") or meta.get("updated_at") or "-"
+            entry_count = meta.get("entry_count", "0")
+            rows.append((
+                "daily.log",
+                "log",
+                "-",
+                row_date,
+                f"log-{meta.get('date', '')}" if meta.get("date") else path.stem,
+                str(path),
+                f"{entry_count} entries",
+                ",".join(tags),
+                _row_date_sort_value(row_date),
+            ))
+
+    if args.type in ("checkin", "all"):
+        for path, meta, body in _load_checkin_records():
+            tags = parse_tags_field(meta.get("tags", ""))
+            if not _list_filters_match("checkin", meta, tags, args):
+                continue
+            row_date = meta.get("created_at") or "-"
+            rows.append((
+                "daily.checkin",
+                "checkin",
+                "-",
+                row_date,
+                meta.get("checkin_id", "") or path.stem,
+                str(path),
+                title_from_body(body),
+                ",".join(tags),
+                _row_date_sort_value(row_date),
+            ))
+
+    if args.type in ("review", "all"):
+        for path, meta, body in _load_review_records():
+            tags = parse_tags_field(meta.get("tags", ""))
+            if not _list_filters_match("review", meta, tags, args):
+                continue
+            row_date = meta.get("created_at") or meta.get("range_start") or "-"
+            rows.append((
+                "daily.review",
+                "review",
+                "-",
+                row_date,
+                meta.get("review_id", "") or path.stem,
+                str(path),
+                title_from_body(body),
+                ",".join(tags),
+                _row_date_sort_value(row_date),
+            ))
+
+    rows = _sort_list_rows(rows, args.sort)
+    if args.limit and args.limit > 0:
+        rows = rows[: args.limit]
+
+    for row in rows:
+        print("\t".join(row[:8]))
+
+
 def _collect_difficulties_in_range(start, end):
     return list(iter_task_difficulties_in_range(_load_task_records(), start, end))
 
@@ -773,7 +929,7 @@ def review(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description=f"Daily skill: tasks, logs, check-ins, scan. Records in {TASKS_DIR_DISPLAY} and siblings."
+        description=f"Daily skill: tasks, logs, check-ins, list, scan. Records in {TASKS_DIR_DISPLAY} and siblings."
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -853,6 +1009,19 @@ def main():
     p_scan.add_argument("--status", choices=list(TASK_STATUSES))
     p_scan.add_argument("--limit", type=int, default=0, help="Max rows (0 = unlimited).")
     p_scan.set_defaults(func=scan)
+
+    p_list = sub.add_parser("list", help="List daily records; read-only.")
+    p_list.add_argument("--type", choices=list(LIST_TYPES), default="all")
+    p_list.add_argument("--tag")
+    p_list.add_argument("--category")
+    p_list.add_argument("--priority", choices=list(PRIORITIES))
+    p_list.add_argument("--status", choices=list(TASK_STATUSES))
+    p_list.add_argument(
+        "--sort", choices=["date", "title", "path"], default="date",
+        help="Sort rows (default: date desc).",
+    )
+    p_list.add_argument("--limit", type=int, default=0, help="Max rows (0 = unlimited).")
+    p_list.set_defaults(func=list_records)
 
     p_doctor = sub.add_parser(
         "doctor",

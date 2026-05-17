@@ -25,6 +25,9 @@ from aha_md import (  # noqa: E402
     locked_record,
     parse_dt,
     parse_frontmatter,
+    parse_frontmatter_lines,
+    parse_tags_field,
+    read_text_or_warn,
     render_frontmatter,
     replace_section,
     resolve_text_input,
@@ -35,6 +38,7 @@ from aha_md import (  # noqa: E402
     slugify,
     split_frontmatter,
     title_from,
+    title_from_body,
     unique_path,
     verify_unchanged_since,
     workspace_dir,
@@ -292,9 +296,68 @@ def scan(args):
         print(f"{status}\t{updated}\t{next_review}\t{path}")
 
 
+def _record_date_sort_key(meta, key):
+    parsed = parse_dt(meta.get(key))
+    if parsed is None:
+        return ""
+    return parsed.isoformat()
+
+
+def list_records(args):
+    root = default_idea_dir()
+    ensure_dir(root)
+    rows = []
+    for path in iter_record_paths(root):
+        text = read_text_or_warn(path)
+        if text is None:
+            continue
+        fm_lines, body = split_frontmatter(text)
+        if not fm_lines:
+            continue
+        meta = parse_frontmatter_lines(fm_lines)
+        if not schema_version_compatible(meta, path=path):
+            continue
+        if not meta.get("id"):
+            continue
+        status = meta.get("status", "")
+        tags = parse_tags_field(meta.get("tags", ""))
+        if args.status and status != args.status:
+            continue
+        if args.category and args.category != meta.get("primary_category", ""):
+            continue
+        if args.tag and args.tag not in tags:
+            continue
+        rows.append((path, meta, body, tags))
+
+    sort_key = args.sort
+    if sort_key == "created":
+        rows.sort(key=lambda r: (_record_date_sort_key(r[1], "created_at"), str(r[0])), reverse=True)
+    elif sort_key == "title":
+        rows.sort(key=lambda r: (title_from_body(r[2]).lower(), str(r[0])))
+    elif sort_key == "path":
+        rows.sort(key=lambda r: str(r[0]))
+    else:
+        rows.sort(key=lambda r: (_record_date_sort_key(r[1], "updated_at"), str(r[0])), reverse=True)
+
+    if args.limit and args.limit > 0:
+        rows = rows[: args.limit]
+
+    for path, meta, body, tags in rows:
+        print("\t".join([
+            "idea",
+            "idea",
+            meta.get("status", "") or "-",
+            meta.get("updated_at", "") or "-",
+            meta.get("id", "") or path.stem,
+            str(path),
+            title_from_body(body),
+            ",".join(tags),
+        ]))
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description=f"Capture and scan Markdown idea records in {IDEA_DIR_DISPLAY}."
+        description=f"Capture, list, and scan Markdown idea records in {IDEA_DIR_DISPLAY}."
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -331,6 +394,20 @@ def main():
              " override that forces read-only even if --mark-prompted is set.)",
     )
     p_scan.set_defaults(func=scan)
+
+    p_list = sub.add_parser(
+        "list",
+        help="List all idea records; read-only.",
+    )
+    p_list.add_argument("--status", choices=sorted(STATUSES))
+    p_list.add_argument("--tag", help="Filter by tag.")
+    p_list.add_argument("--category", help="Filter by primary_category.")
+    p_list.add_argument(
+        "--sort", choices=["updated", "created", "title", "path"], default="updated",
+        help="Sort rows (default: updated desc).",
+    )
+    p_list.add_argument("--limit", type=int, default=0, help="Max rows (0 = unlimited).")
+    p_list.set_defaults(func=list_records)
 
     p_enrich = sub.add_parser(
         "enrich",
