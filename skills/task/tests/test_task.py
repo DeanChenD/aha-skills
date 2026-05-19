@@ -83,3 +83,18 @@ def test_done_with_reflection(run):
 
 def test_done_unknown_id(run):
     run("done", "missing", expect_code=1)
+
+
+def test_drop_sets_status_dropped(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    proc = run("drop", rid)
+    rec = json.loads(proc.stdout.strip())
+    assert rec["status"] == "dropped"
+    assert rec["done_at"]
+
+
+def test_drop_with_reflection(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    proc = run("drop", rid, "--reflection", "no longer needed")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["reflection"] == "no longer needed"

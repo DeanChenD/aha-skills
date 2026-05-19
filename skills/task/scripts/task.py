@@ -48,6 +48,11 @@ def cmd_done(args) -> None:
     print(store.to_jsonl_line(out))
 
 
+def cmd_drop(args) -> None:
+    out = store.mark_dropped(SKILL, args.id, args.reflection)
+    print(store.to_jsonl_line(out))
+
+
 def cmd_list(args) -> None:
     records = store.filter_records(
         store.read_all(SKILL),
@@ -97,6 +102,11 @@ def main() -> None:
     d.add_argument("id")
     d.add_argument("--reflection", default=None)
     d.set_defaults(fn=cmd_done)
+
+    dr = sub.add_parser("drop", help="mark task dropped")
+    dr.add_argument("id")
+    dr.add_argument("--reflection", default=None)
+    dr.set_defaults(fn=cmd_drop)
 
     args = p.parse_args()
     try:
