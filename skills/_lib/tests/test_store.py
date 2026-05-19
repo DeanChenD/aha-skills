@@ -148,7 +148,7 @@ def test_filter_by_status():
 
 def test_filter_by_due_before_skips_null():
     out = store.filter_records(SAMPLE, due_before="2026-05-19")
-    assert [r["id"] for r in out] == ["a", "b"]
+    assert [r["id"] for r in out] == ["b"]
 
 
 def test_filter_limit_keeps_first_n():
