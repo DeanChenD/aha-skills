@@ -74,3 +74,28 @@ def test_ensure_initialized_idempotent(aha_home):
     (aha_home / "dao.jsonl").write_text('{"id":"x"}\n')
     store.ensure_initialized("dao")
     assert (aha_home / "dao.jsonl").read_text() == '{"id":"x"}\n'
+
+
+def test_read_all_empty_when_no_file(aha_home):
+    assert store.read_all("idea") == []
+
+
+def test_read_all_parses_each_line(aha_home):
+    p = aha_home / "idea.jsonl"
+    p.write_text('{"id":"a","raw":"first"}\n{"id":"b","raw":"second"}\n')
+    rows = store.read_all("idea")
+    assert [r["id"] for r in rows] == ["a", "b"]
+
+
+def test_read_all_skips_blank_lines(aha_home):
+    p = aha_home / "idea.jsonl"
+    p.write_text('{"id":"a"}\n\n{"id":"b"}\n')
+    assert [r["id"] for r in store.read_all("idea")] == ["a", "b"]
+
+
+def test_read_all_raises_corrupt_with_line_no(aha_home):
+    p = aha_home / "idea.jsonl"
+    p.write_text('{"id":"a"}\nnot-json\n{"id":"c"}\n')
+    with pytest.raises(store.CorruptRecord) as ei:
+        store.read_all("idea")
+    assert ei.value.line_no == 2

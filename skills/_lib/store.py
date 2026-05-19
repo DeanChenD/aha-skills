@@ -63,3 +63,23 @@ def ensure_initialized(skill: str) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     if not p.exists():
         p.touch()
+
+
+import json
+
+
+def read_all(skill: str) -> list[dict]:
+    p = jsonl_path(skill)
+    if not p.exists():
+        return []
+    out: list[dict] = []
+    with p.open() as f:
+        for i, line in enumerate(f, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                out.append(json.loads(stripped))
+            except json.JSONDecodeError as e:
+                raise CorruptRecord(str(p), i, str(e)) from e
+    return out
