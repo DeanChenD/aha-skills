@@ -1,6 +1,6 @@
 ---
 name: idea
-description: Capture a fleeting outward-facing creative impulse — anything from a half-formed product idea to a future side project. Triggers on Chinese 想法/灵感/点子/创意/idea/我有个想法 and English I have an idea / brainstorm / what if we / project idea / explore. Use when the user wants to record something they could later act on, distinct from internal insight (dao), tactical shortcuts (tip), or to-dos (todo).
+description: Capture a fleeting outward-facing creative impulse — anything from a half-formed product idea to a future side project — and optionally iterate on it through multi-turn discussion until a decision lands. Triggers on Chinese 想法/灵感/点子/创意/idea/我有个想法/聊聊这条/继续聊 and English I have an idea / brainstorm / what if we / project idea / explore / continue idea / discuss this idea. Use when the user wants to record something they could later act on, or pick up an in-flight discussion of one, distinct from internal insight (dao), tactical shortcuts (tip), or to-dos (todo).
 version: 0.1.0
 ---
 
@@ -11,7 +11,9 @@ version: 0.1.0
 ## Triggers
 
 - 我有个想法 / 想到一个点子 / 这个 idea 不错
+- 聊聊这条 idea / 继续聊上次那条 idea / 我想好好聊聊这个想法
 - I have an idea / what if we / project idea / brainstorm this
+- discuss this idea / continue idea X / let's iterate on this idea
 - Slash: /idea
 
 ## Storage
@@ -41,7 +43,7 @@ Run scripts with `python skills/idea/scripts/idea.py <verb> ...`.
 python skills/idea/scripts/idea.py add "用 JSONL 替代 markdown 做事实源" --tag aha-skills --status incubating
 python skills/idea/scripts/idea.py list --tag aha-skills --tsv
 python skills/idea/scripts/idea.py refine 2026-05-19-a3f7 "数据是核心,工具附着"
-python skills/idea/scripts/idea.py log 2026-05-19-a3f7 "本轮:澄清目标用户是谁\n焦点:替代方案\n下一步:问现在怎么解决"
+python skills/idea/scripts/idea.py log 2026-05-19-a3f7 "本轮:澄清目标用户是谁;焦点:替代方案;下一步:问现在怎么解决"
 python skills/idea/scripts/idea.py set-status 2026-05-19-a3f7 decided
 ```
 
@@ -113,7 +115,7 @@ When the user says "continue talking about idea X" / "接着上次聊":
 
 1. **Locate**: id given → use it; otherwise `idea list` + raw / tag / status fuzzy match, confirm with user.
 2. **Load**: read raw + refined + log[], sort log by `at`.
-3. **Rebuild**: trail comes from the log stream; focus / next come from the latest log's note.
+3. **Rebuild**: trail comes from the log stream; focus / next come from the latest log's note. If the latest entry has no `下一步:` / `焦点:` cue (those dimensions are optional per "How to write a log note"), look back through earlier entries for the most recent labeled cue; if none exists, open with a fresh clarifying question informed by the trail.
 4. **Speak**: open with your own phrasing — don't parrot the previous "下一步" verbatim.
 
 If the gap between two consecutive log entries' `at` is > 24h, treat it implicitly as a new resumption — no session boundary field needed.
