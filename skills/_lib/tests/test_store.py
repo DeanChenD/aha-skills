@@ -154,3 +154,29 @@ def test_filter_by_due_before_skips_null():
 def test_filter_limit_keeps_first_n():
     out = store.filter_records(SAMPLE, limit=2)
     assert [r["id"] for r in out] == ["a", "b"]
+
+
+def test_to_jsonl_line_no_unicode_escape():
+    line = store.to_jsonl_line({"raw": "你好"})
+    assert "你好" in line
+    assert "\\u" not in line
+    assert line.endswith("}")
+    assert "\n" not in line
+
+
+def test_to_tsv_row_pads_missing_with_dash():
+    row = store.to_tsv_row({"id": "a"}, ["id", "raw", "status"])
+    assert row.split("\t") == ["a", "-", "-"]
+
+
+def test_to_tsv_row_truncates_long_text():
+    long = "x" * 100
+    row = store.to_tsv_row({"raw": long}, ["raw"])
+    cell = row.split("\t")[0]
+    assert cell.endswith("…")
+    assert len(cell) == 61  # 60 chars + ellipsis
+
+
+def test_to_tsv_row_joins_tag_list():
+    row = store.to_tsv_row({"tags": ["x", "y"]}, ["tags"])
+    assert row == "x,y"

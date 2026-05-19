@@ -117,3 +117,27 @@ def filter_records(
     if limit is not None:
         out = out[:limit]
     return out
+
+
+TSV_TRUNC = 60
+
+
+def to_jsonl_line(record: dict) -> str:
+    return json.dumps(record, ensure_ascii=False, separators=(",", ":"))
+
+
+def to_tsv_row(record: dict, columns: list[str]) -> str:
+    cells: list[str] = []
+    for col in columns:
+        v = record.get(col)
+        if v is None or v == "" or v == []:
+            cells.append("-")
+            continue
+        if isinstance(v, list):
+            cells.append(",".join(str(x) for x in v))
+            continue
+        s = str(v).replace("\t", " ").replace("\n", " ")
+        if len(s) > TSV_TRUNC:
+            s = s[:TSV_TRUNC] + "…"
+        cells.append(s)
+    return "\t".join(cells)
