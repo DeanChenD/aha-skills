@@ -131,8 +131,11 @@ Every turn writes a log; only turns where the **core proposition** of `refined` 
 
 dao does not have a status machine, so no `set-status` step. When the discussion has done its work:
 
+- Operationally, closure is signaled by (a) `refined` wording stabilizing across consecutive turns (no proposed updates land), or (b) the user explicitly indicating the picture has landed
 - Final `refine` writes the terminal phrasing (if it has shifted)
 - Optional: a closing log note "结论:X;为什么:Y"
+
+dao discussions can also stay open indefinitely — that's normal. Don't force closure.
 
 ### What not to do
 
