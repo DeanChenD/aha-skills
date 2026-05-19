@@ -37,3 +37,22 @@ def new_id() -> str:
 
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+class AhaError(Exception):
+    """Base class for aha-skills errors."""
+
+
+class IdNotFound(AhaError):
+    def __init__(self, skill: str, id: str):
+        super().__init__(f"id {id!r} not found in {skill}")
+        self.skill = skill
+        self.id = id
+
+
+class CorruptRecord(AhaError):
+    def __init__(self, path: str, line_no: int, reason: str):
+        super().__init__(f"{path} line {line_no}: {reason}")
+        self.path = path
+        self.line_no = line_no
+        self.reason = reason

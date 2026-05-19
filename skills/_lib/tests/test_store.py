@@ -47,3 +47,15 @@ def test_new_id_unique_in_practice():
 def test_now_iso_has_offset():
     s = store.now_iso()
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z)", s), s
+
+
+def test_exception_hierarchy():
+    assert issubclass(store.IdNotFound, store.AhaError)
+    assert issubclass(store.CorruptRecord, store.AhaError)
+
+
+def test_corrupt_record_carries_location():
+    err = store.CorruptRecord(path="/tmp/x.jsonl", line_no=3, reason="bad json")
+    assert err.path == "/tmp/x.jsonl"
+    assert err.line_no == 3
+    assert "line 3" in str(err)
