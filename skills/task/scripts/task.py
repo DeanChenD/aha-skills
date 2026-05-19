@@ -38,6 +38,25 @@ def cmd_add(args) -> None:
     print(store.to_jsonl_line(rec))
 
 
+def cmd_list(args) -> None:
+    records = store.filter_records(
+        store.read_all(SKILL),
+        since=args.since,
+        until=args.until,
+        tags=args.tag or None,
+        status=args.status,
+        due_before=args.due_before,
+        limit=args.limit,
+    )
+    if args.tsv:
+        print("\t".join(TSV_COLS))
+        for r in records:
+            print(store.to_tsv_row(r, TSV_COLS))
+    else:
+        for r in records:
+            print(store.to_jsonl_line(r))
+
+
 def main() -> None:
     p = store.AhaArgParser(prog="task")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -47,6 +66,17 @@ def main() -> None:
     a.add_argument("--due", type=_iso_date, default=None)
     a.add_argument("--tag", action="append", default=[])
     a.set_defaults(fn=cmd_add)
+
+    l = sub.add_parser("list", help="list tasks")
+    l.add_argument("--status", choices=STATUSES, default=None)
+    l.add_argument("--tag", action="append", default=[])
+    l.add_argument("--since", default=None)
+    l.add_argument("--until", default=None)
+    l.add_argument("--due-before", dest="due_before",
+                   type=_iso_date, default=None)
+    l.add_argument("--limit", type=int, default=None)
+    l.add_argument("--tsv", action="store_true")
+    l.set_defaults(fn=cmd_list)
 
     args = p.parse_args()
     try:
