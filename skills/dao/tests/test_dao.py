@@ -41,3 +41,17 @@ def test_list_tag_filter(run):
     proc = run("list", "--tag", "a")
     assert "alpha" in proc.stdout
     assert "beta" not in proc.stdout
+
+
+def test_refine_archives_previous(run):
+    rid = json.loads(run("add", "原话").stdout)["id"]
+    run("refine", rid, "v1")
+    proc = run("refine", rid, "v2")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["refined"] == "v2"
+    assert rec["raw"] == "原话"
+    assert rec["refinement_log"][-1]["prev_refined"] == "v1"
+
+
+def test_refine_unknown_id(run):
+    run("refine", "missing", "x", expect_code=1)
