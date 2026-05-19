@@ -99,3 +99,13 @@ def test_read_all_raises_corrupt_with_line_no(aha_home):
     with pytest.raises(store.CorruptRecord) as ei:
         store.read_all("idea")
     assert ei.value.line_no == 2
+
+
+def test_find_by_id_hit(aha_home):
+    (aha_home / "idea.jsonl").write_text('{"id":"a"}\n{"id":"b"}\n')
+    assert store.find_by_id("idea", "b") == {"id": "b"}
+
+
+def test_find_by_id_miss_returns_none(aha_home):
+    (aha_home / "idea.jsonl").write_text('{"id":"a"}\n')
+    assert store.find_by_id("idea", "z") is None

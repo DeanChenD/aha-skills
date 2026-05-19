@@ -83,3 +83,10 @@ def read_all(skill: str) -> list[dict]:
             except json.JSONDecodeError as e:
                 raise CorruptRecord(str(p), i, str(e)) from e
     return out
+
+
+def find_by_id(skill: str, id: str) -> dict | None:
+    for rec in read_all(skill):
+        if rec.get("id") == id:
+            return rec
+    return None
