@@ -56,3 +56,10 @@ class CorruptRecord(AhaError):
         self.path = path
         self.line_no = line_no
         self.reason = reason
+
+
+def ensure_initialized(skill: str) -> None:
+    p = jsonl_path(skill)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if not p.exists():
+        p.touch()

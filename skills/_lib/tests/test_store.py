@@ -59,3 +59,18 @@ def test_corrupt_record_carries_location():
     assert err.path == "/tmp/x.jsonl"
     assert err.line_no == 3
     assert "line 3" in str(err)
+
+
+def test_ensure_initialized_creates_dir_and_file(aha_home):
+    p = aha_home / "idea.jsonl"
+    assert not p.exists()
+    store.ensure_initialized("idea")
+    assert p.exists()
+    assert p.read_text() == ""
+
+
+def test_ensure_initialized_idempotent(aha_home):
+    store.ensure_initialized("dao")
+    (aha_home / "dao.jsonl").write_text('{"id":"x"}\n')
+    store.ensure_initialized("dao")
+    assert (aha_home / "dao.jsonl").read_text() == '{"id":"x"}\n'
