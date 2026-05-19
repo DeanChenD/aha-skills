@@ -141,3 +141,29 @@ def to_tsv_row(record: dict, columns: list[str]) -> str:
             s = s[:TSV_TRUNC] + "…"
         cells.append(s)
     return "\t".join(cells)
+
+
+import fcntl
+from contextlib import contextmanager
+
+
+@contextmanager
+def locked(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch(exist_ok=True)
+    with open(path, "r+") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            yield f
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
+def _atomic_write_lines(path: Path, lines: list[str]) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    body = "\n".join(lines) + ("\n" if lines else "")
+    with open(tmp, "w") as f:
+        f.write(body)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)

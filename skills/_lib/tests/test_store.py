@@ -180,3 +180,23 @@ def test_to_tsv_row_truncates_long_text():
 def test_to_tsv_row_joins_tag_list():
     row = store.to_tsv_row({"tags": ["x", "y"]}, ["tags"])
     assert row == "x,y"
+
+
+def test_atomic_write_replaces_file(aha_home):
+    p = aha_home / "idea.jsonl"
+    p.write_text("old\n")
+    store._atomic_write_lines(p, ['{"id":"a"}', '{"id":"b"}'])
+    assert p.read_text() == '{"id":"a"}\n{"id":"b"}\n'
+
+
+def test_atomic_write_handles_empty(aha_home):
+    p = aha_home / "idea.jsonl"
+    store._atomic_write_lines(p, [])
+    assert p.read_text() == ""
+
+
+def test_locked_creates_file_if_missing(aha_home):
+    p = aha_home / "idea.jsonl"
+    with store.locked(p):
+        pass
+    assert p.exists()
