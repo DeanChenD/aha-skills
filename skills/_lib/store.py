@@ -13,8 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Literal
 
-Skill = Literal["idea", "dao", "tip", "task"]
-SKILLS: tuple[Skill, ...] = ("idea", "dao", "tip", "task")
+Skill = Literal["idea", "dao", "tip", "todo"]
+SKILLS: tuple[Skill, ...] = ("idea", "dao", "tip", "todo")
 
 
 def aha_home() -> Path:

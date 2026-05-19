@@ -1,12 +1,12 @@
 ---
 name: idea
-description: Capture a fleeting outward-facing creative impulse — anything from a half-formed product idea to a future side project. Triggers on Chinese 想法/灵感/点子/创意/idea/我有个想法 and English I have an idea / brainstorm / what if we / project idea / explore. Use when the user wants to record something they could later act on, distinct from internal insight (dao), tactical shortcuts (tip), or to-dos (task).
+description: Capture a fleeting outward-facing creative impulse — anything from a half-formed product idea to a future side project. Triggers on Chinese 想法/灵感/点子/创意/idea/我有个想法 and English I have an idea / brainstorm / what if we / project idea / explore. Use when the user wants to record something they could later act on, distinct from internal insight (dao), tactical shortcuts (tip), or to-dos (todo).
 version: 0.1.0
 ---
 
 # idea
 
-`idea` captures outward-facing impulses — sparks of "we could build X" or "what if we tried Y." It is the entry point for the lifecycle: capture → refine → decide. The agent records, suggests refinements, and surfaces related ideas; it never decides for the user, never auto-promotes to task, never overwrites raw.
+`idea` captures outward-facing impulses — sparks of "we could build X" or "what if we tried Y." It is the entry point for the lifecycle: capture → refine → decide. The agent records, suggests refinements, and surfaces related ideas; it never decides for the user, never auto-promotes to todo, never overwrites raw.
 
 ## Triggers
 

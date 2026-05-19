@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "task.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "todo.py"
 
 
 @pytest.fixture

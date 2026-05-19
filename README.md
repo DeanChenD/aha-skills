@@ -7,7 +7,7 @@ Five skills:
 - **idea** — outward sparks: capture → incubate → decide.
 - **dao** — inward realizations: original phrasing preserved, distillation layered on top.
 - **tip** — small tactical shortcuts.
-- **task** — to-dos with progress log and post-hoc reflection.
+- **todo** — to-dos with progress log and post-hoc reflection.
 - **reflect** — agent-driven cross-skill pattern surfacing (read-only).
 
 ## Design tenets
@@ -27,7 +27,7 @@ skills/
   idea/SKILL.md + scripts/idea.py
   dao/SKILL.md  + scripts/dao.py
   tip/SKILL.md  + scripts/tip.py
-  task/SKILL.md + scripts/task.py
+  todo/SKILL.md + scripts/todo.py
   reflect/SKILL.md      (no script — agent-driven)
 scripts/run_tests.py
 Makefile
@@ -38,8 +38,8 @@ Makefile
 ```bash
 make test                                                    # run the suite
 make idea ARGS="add '用 JSONL 替代 Markdown' --tag aha-skills"
-make task ARGS="add 'ship redesign' --due 2026-05-30"
-make task ARGS="list --status open --tsv"
+make todo ARGS="add 'ship redesign' --due 2026-05-30"
+make todo ARGS="list --status open --tsv"
 ```
 
 Data location: `$HOME/aha/<skill>.jsonl`. Override with `AHA_HOME=/path/to/dir`.

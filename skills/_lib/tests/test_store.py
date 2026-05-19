@@ -18,7 +18,7 @@ def test_aha_home_defaults_to_home_aha(monkeypatch, tmp_path):
 
 def test_jsonl_path_per_skill(aha_home):
     assert store.jsonl_path("idea") == aha_home / "idea.jsonl"
-    assert store.jsonl_path("task") == aha_home / "task.jsonl"
+    assert store.jsonl_path("todo") == aha_home / "todo.jsonl"
 
 
 def test_jsonl_path_rejects_unknown_skill(aha_home):
@@ -278,49 +278,49 @@ def test_refine_does_not_mutate_raw(aha_home):
 
 
 def test_append_log_appends(aha_home):
-    (aha_home / "task.jsonl").write_text(
+    (aha_home / "todo.jsonl").write_text(
         '{"id":"a","log":[]}\n'
     )
-    out = store.append_log("task", "a", "first note")
+    out = store.append_log("todo", "a", "first note")
     assert out["log"][-1]["note"] == "first note"
     assert "at" in out["log"][-1]
 
 
 def test_append_log_preserves_existing(aha_home):
-    (aha_home / "task.jsonl").write_text(
+    (aha_home / "todo.jsonl").write_text(
         '{"id":"a","log":[{"at":"2026-01-01T00:00:00+00:00","note":"n0"}]}\n'
     )
-    out = store.append_log("task", "a", "n1")
+    out = store.append_log("todo", "a", "n1")
     assert [e["note"] for e in out["log"]] == ["n0", "n1"]
 
 
 def test_mark_done_sets_status_and_done_at(aha_home):
-    (aha_home / "task.jsonl").write_text('{"id":"a","status":"open","done_at":null}\n')
-    out = store.mark_done("task", "a")
+    (aha_home / "todo.jsonl").write_text('{"id":"a","status":"open","done_at":null}\n')
+    out = store.mark_done("todo", "a")
     assert out["status"] == "done"
     assert out["done_at"]
 
 
 def test_mark_done_with_reflection(aha_home):
-    (aha_home / "task.jsonl").write_text(
+    (aha_home / "todo.jsonl").write_text(
         '{"id":"a","status":"open","done_at":null,"reflection":null}\n'
     )
-    out = store.mark_done("task", "a", reflection="went well")
+    out = store.mark_done("todo", "a", reflection="went well")
     assert out["reflection"] == "went well"
 
 
 def test_mark_dropped_sets_status_dropped(aha_home):
-    (aha_home / "task.jsonl").write_text('{"id":"a","status":"open","done_at":null}\n')
-    out = store.mark_dropped("task", "a")
+    (aha_home / "todo.jsonl").write_text('{"id":"a","status":"open","done_at":null}\n')
+    out = store.mark_dropped("todo", "a")
     assert out["status"] == "dropped"
     assert out["done_at"] is None  # drop does not imply completion
 
 
 def test_mark_dropped_keeps_reflection_optional(aha_home):
-    (aha_home / "task.jsonl").write_text(
+    (aha_home / "todo.jsonl").write_text(
         '{"id":"a","status":"open","done_at":null,"reflection":null}\n'
     )
-    out = store.mark_dropped("task", "a")
+    out = store.mark_dropped("todo", "a")
     assert out["reflection"] is None
 
 
@@ -329,14 +329,14 @@ def test_mark_dropped_keeps_reflection_optional(aha_home):
     [
         ("idea", '{"id":"a","raw":"orig","status":null}\n',
          lambda: store.update_record("idea", "a", lambda r: {**r, "status": "decided"})),
-        ("task", '{"id":"a","raw":"orig","status":"open","done_at":null,"log":[]}\n',
-         lambda: store.append_log("task", "a", "n1")),
-        ("task", '{"id":"a","raw":"orig","status":"open","done_at":null}\n',
-         lambda: store.mark_done("task", "a")),
-        ("task", '{"id":"a","raw":"orig","status":"open","done_at":null}\n',
-         lambda: store.mark_dropped("task", "a")),
-        ("task", '{"id":"a","raw":"orig","due":null}\n',
-         lambda: store.update_record("task", "a", lambda r: {**r, "due": "2026-12-31"})),
+        ("todo", '{"id":"a","raw":"orig","status":"open","done_at":null,"log":[]}\n',
+         lambda: store.append_log("todo", "a", "n1")),
+        ("todo", '{"id":"a","raw":"orig","status":"open","done_at":null}\n',
+         lambda: store.mark_done("todo", "a")),
+        ("todo", '{"id":"a","raw":"orig","status":"open","done_at":null}\n',
+         lambda: store.mark_dropped("todo", "a")),
+        ("todo", '{"id":"a","raw":"orig","due":null}\n',
+         lambda: store.update_record("todo", "a", lambda r: {**r, "due": "2026-12-31"})),
     ],
 )
 def test_raw_survives_non_refine_mutators(aha_home, skill, initial, call):
@@ -383,18 +383,18 @@ def test_concurrent_appends_no_loss(aha_home):
 
 
 def test_concurrent_updates_no_overwrite(aha_home):
-    (aha_home / "task.jsonl").write_text('{"id":"a","log":[]}\n')
+    (aha_home / "todo.jsonl").write_text('{"id":"a","log":[]}\n')
     N = 10
     barrier = threading.Barrier(N)
 
     def worker(i):
         barrier.wait()
-        store.append_log("task", "a", f"note-{i}")
+        store.append_log("todo", "a", f"note-{i}")
 
     threads = [threading.Thread(target=worker, args=(i,)) for i in range(N)]
     for t in threads: t.start()
     for t in threads: t.join()
 
-    rec = store.find_by_id("task", "a")
+    rec = store.find_by_id("todo", "a")
     assert len(rec["log"]) == N
     assert {e["note"] for e in rec["log"]} == {f"note-{i}" for i in range(N)}

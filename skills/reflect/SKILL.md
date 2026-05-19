@@ -1,6 +1,6 @@
 ---
 name: reflect
-description: Cross-skill pattern surfacing across idea/dao/tip/task within a time window. Triggers on Chinese 复盘/回顾/最近一段/这段时间/抽个空看看/总结 and English reflect / retro / what happened / weekly review / surface patterns. Use when the user wants the agent to read across all four record-producing skills (idea, dao, tip, task) and synthesize themes — not to add anything new.
+description: Cross-skill pattern surfacing across idea/dao/tip/todo within a time window. Triggers on Chinese 复盘/回顾/最近一段/这段时间/抽个空看看/总结 and English reflect / retro / what happened / weekly review / surface patterns. Use when the user wants the agent to read across all four record-producing skills (idea, dao, tip, todo) and synthesize themes — not to add anything new.
 version: 0.1.0
 ---
 
@@ -24,15 +24,15 @@ When invoked:
    python skills/idea/scripts/idea.py list --since YYYY-MM-DD
    python skills/dao/scripts/dao.py  list --since YYYY-MM-DD
    python skills/tip/scripts/tip.py  list --since YYYY-MM-DD
-   python skills/task/scripts/task.py list --since YYYY-MM-DD
+   python skills/todo/scripts/todo.py list --since YYYY-MM-DD
    ```
 3. Aggregate in context:
    - tag frequency per skill and across skills
    - cross-source tag co-occurrences
-   - task status distribution (open/done/dropped/overdue)
+   - todo status distribution (open/done/dropped/overdue)
    - notable refinements (idea/dao records with non-empty `refinement_log`)
 4. Surface 3-5 themes. Each theme cites at least one source `id` from the underlying records.
-5. Offer suggestions ("would you like to ..."): triage suggestions for stale tasks, generalization candidates from repeated tips, candidate links between idea/dao that share tags. **Do not execute** the suggestions.
+5. Offer suggestions ("would you like to ..."): triage suggestions for stale todos, generalization candidates from repeated tips, candidate links between idea/dao that share tags. **Do not execute** the suggestions.
 
 ## Constraints
 
@@ -48,4 +48,4 @@ The actual work — reading, aggregating, synthesizing — is what the agent alr
 ## Examples
 
 User: "帮我复盘最近两周的 aha-skills 工作"
-Agent: pulls `--since 2026-05-05` from all four skills, finds tag `aha-skills` co-occurring across 1 idea, 3 dao, 5 task entries, surfaces themes (e.g. "两次 dao 都在讨论 schema 简化"), suggests "要不要把这两个 dao refine 成一条原则?" — and waits for confirmation before invoking `dao refine`.
+Agent: pulls `--since 2026-05-05` from all four skills, finds tag `aha-skills` co-occurring across 1 idea, 3 dao, 5 todo entries, surfaces themes (e.g. "两次 dao 都在讨论 schema 简化"), suggests "要不要把这两个 dao refine 成一条原则?" — and waits for confirmation before invoking `dao refine`.

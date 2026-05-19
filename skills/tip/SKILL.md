@@ -1,6 +1,6 @@
 ---
 name: tip
-description: Record a small actionable shortcut — a CLI flag, keystroke, workaround, or "did you know" trick. Triggers on Chinese 小技巧/小妙招/有个捷径/小贴士/快捷方式 and English shortcut / trick / pro tip / hack / lifehack. Use for tactical, repeatable techniques. Distinct from outward ideas (idea), inward insights (dao), and to-dos (task).
+description: Record a small actionable shortcut — a CLI flag, keystroke, workaround, or "did you know" trick. Triggers on Chinese 小技巧/小妙招/有个捷径/小贴士/快捷方式 and English shortcut / trick / pro tip / hack / lifehack. Use for tactical, repeatable techniques. Distinct from outward ideas (idea), inward insights (dao), and to-dos (todo).
 version: 0.1.0
 ---
 

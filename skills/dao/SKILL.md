@@ -1,6 +1,6 @@
 ---
 name: dao
-description: Capture an inward-facing realization, principle, or methodology — the "道" or aha moment that names how things work. Triggers on Chinese 感悟/领悟/方法论/道/原则/aha/想明白了 and English insight / realization / principle / methodology / lesson learned. Use when the user is naming a pattern they noticed (internal), distinct from outward ideas (idea), tactical tips (tip), or work to do (task).
+description: Capture an inward-facing realization, principle, or methodology — the "道" or aha moment that names how things work. Triggers on Chinese 感悟/领悟/方法论/道/原则/aha/想明白了 and English insight / realization / principle / methodology / lesson learned. Use when the user is naming a pattern they noticed (internal), distinct from outward ideas (idea), tactical tips (tip), or work to do (todo).
 version: 0.1.0
 ---
 

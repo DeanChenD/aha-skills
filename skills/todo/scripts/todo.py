@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""task CLI."""
+"""todo CLI."""
 from __future__ import annotations
 
 import sys
@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 import store  # noqa: E402
 
-SKILL = "task"
+SKILL = "todo"
 STATUSES = ("open", "done", "dropped")
 TSV_COLS = ["id", "raw", "status", "due", "tags", "created_at"]
 
@@ -78,16 +78,16 @@ def cmd_list(args) -> None:
 
 
 def main() -> None:
-    p = store.AhaArgParser(prog="task")
+    p = store.AhaArgParser(prog="todo")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    a = sub.add_parser("add", help="capture a task")
+    a = sub.add_parser("add", help="capture a todo")
     a.add_argument("raw")
     a.add_argument("--due", type=_iso_date, default=None)
     a.add_argument("--tag", action="append", default=[])
     a.set_defaults(fn=cmd_add)
 
-    l = sub.add_parser("list", help="list tasks")
+    l = sub.add_parser("list", help="list todos")
     l.add_argument("--status", choices=STATUSES, default=None)
     l.add_argument("--tag", action="append", default=[])
     l.add_argument("--since", default=None)
@@ -103,12 +103,12 @@ def main() -> None:
     g.add_argument("note")
     g.set_defaults(fn=cmd_log)
 
-    d = sub.add_parser("done", help="mark task done")
+    d = sub.add_parser("done", help="mark todo done")
     d.add_argument("id")
     d.add_argument("--reflection", default=None)
     d.set_defaults(fn=cmd_done)
 
-    dr = sub.add_parser("drop", help="mark task dropped")
+    dr = sub.add_parser("drop", help="mark todo dropped")
     dr.add_argument("id")
     dr.add_argument("--reflection", default=None)
     dr.set_defaults(fn=cmd_drop)
