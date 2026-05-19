@@ -200,3 +200,16 @@ def test_locked_creates_file_if_missing(aha_home):
     with store.locked(p):
         pass
     assert p.exists()
+
+
+def test_append_record_writes_one_line(aha_home):
+    rec = {"id": "x", "raw": "hi"}
+    store.append_record("idea", rec)
+    contents = (aha_home / "idea.jsonl").read_text()
+    assert contents == '{"id":"x","raw":"hi"}\n'
+
+
+def test_append_record_appends_multiple(aha_home):
+    store.append_record("idea", {"id": "a"})
+    store.append_record("idea", {"id": "b"})
+    assert (aha_home / "idea.jsonl").read_text() == '{"id":"a"}\n{"id":"b"}\n'

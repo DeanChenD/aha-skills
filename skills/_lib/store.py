@@ -167,3 +167,13 @@ def _atomic_write_lines(path: Path, lines: list[str]) -> None:
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)
+
+
+def append_record(skill: str, record: dict) -> None:
+    p = jsonl_path(skill)
+    line = to_jsonl_line(record) + "\n"
+    with locked(p) as f:
+        f.seek(0, os.SEEK_END)
+        f.write(line)
+        f.flush()
+        os.fsync(f.fileno())
