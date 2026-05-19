@@ -38,6 +38,11 @@ def cmd_add(args) -> None:
     print(store.to_jsonl_line(rec))
 
 
+def cmd_log(args) -> None:
+    out = store.append_log(SKILL, args.id, args.note)
+    print(store.to_jsonl_line(out))
+
+
 def cmd_list(args) -> None:
     records = store.filter_records(
         store.read_all(SKILL),
@@ -77,6 +82,11 @@ def main() -> None:
     l.add_argument("--limit", type=int, default=None)
     l.add_argument("--tsv", action="store_true")
     l.set_defaults(fn=cmd_list)
+
+    g = sub.add_parser("log", help="append a progress note")
+    g.add_argument("id")
+    g.add_argument("note")
+    g.set_defaults(fn=cmd_log)
 
     args = p.parse_args()
     try:

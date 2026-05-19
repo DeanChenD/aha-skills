@@ -52,3 +52,14 @@ def test_list_due_before_filters(run):
     run("add", "b", "--due", "2026-06-10")
     proc = run("list", "--due-before", "2026-06-01")
     assert "a" in proc.stdout and "b" not in proc.stdout
+
+
+def test_log_appends(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    proc = run("log", rid, "first note")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["log"][-1]["note"] == "first note"
+
+
+def test_log_unknown_id(run):
+    run("log", "missing", "n", expect_code=1)
