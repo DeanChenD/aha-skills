@@ -29,6 +29,11 @@ def cmd_add(args) -> None:
     print(store.to_jsonl_line(rec))
 
 
+def cmd_refine(args) -> None:
+    out = store.refine_record(SKILL, args.id, args.refined)
+    print(store.to_jsonl_line(out))
+
+
 def cmd_list(args) -> None:
     records = store.read_all(SKILL)
     records = store.filter_records(
@@ -66,6 +71,11 @@ def main() -> None:
     l.add_argument("--limit", type=int, default=None)
     l.add_argument("--tsv", action="store_true")
     l.set_defaults(fn=cmd_list)
+
+    r = sub.add_parser("refine", help="set or update refined wording")
+    r.add_argument("id")
+    r.add_argument("refined")
+    r.set_defaults(fn=cmd_refine)
 
     args = p.parse_args()
     try:

@@ -78,3 +78,28 @@ def test_list_status_filter(run):
     proc = run("list", "--status", "decided")
     assert len(proc.stdout.strip().splitlines()) == 1
     assert "decided one" in proc.stdout
+
+
+def test_refine_sets_refined(run):
+    add_proc = run("add", "rough idea")
+    rid = json.loads(add_proc.stdout)["id"]
+    proc = run("refine", rid, "polished thought")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["refined"] == "polished thought"
+    assert rec["refinement_log"] == []
+    assert rec["raw"] == "rough idea"
+
+
+def test_refine_archives_previous(run):
+    rid = json.loads(run("add", "rough").stdout)["id"]
+    run("refine", rid, "v1")
+    proc = run("refine", rid, "v2")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["refined"] == "v2"
+    assert len(rec["refinement_log"]) == 1
+    assert rec["refinement_log"][0]["prev_refined"] == "v1"
+
+
+def test_refine_unknown_id_exits_1(run):
+    proc = run("refine", "missing-id", "x", expect_code=1)
+    assert "not found" in proc.stderr
