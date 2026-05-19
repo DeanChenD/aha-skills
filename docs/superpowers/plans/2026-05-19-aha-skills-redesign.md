@@ -1,5 +1,7 @@
 # aha-skills Redesign Implementation Plan
 
+> **2026-05-19 更名**: 实施完成后,第四个 skill 由 `task` 更名为 `todo`(commit `dbe04a0`)。本计划全文(代码块、文件路径、commit message、SKILL.md 嵌入文本等)保留实施期的 `task` 命名作为历史记录;阅读时,请将所有指代该 skill 的 `task` / `task.jsonl` / `skills/task/` / `feat(task): ...` 理解为现 `todo` / `todo.jsonl` / `skills/todo/` / `feat(todo): ...`。设计意图见 `docs/superpowers/specs/2026-05-19-aha-skills-redesign-design.md`(已同步更名)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild aha-skills from scratch around JSONL-as-source-of-truth, replacing ~4000 LOC of Markdown-management Python with a small (≤1050 prod LOC) lib + 4 CLI scripts + 5 SKILL.md files.

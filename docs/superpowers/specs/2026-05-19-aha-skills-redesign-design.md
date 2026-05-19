@@ -4,6 +4,8 @@
 **Status**: Awaiting user review
 **Author**: 重新设计——抛弃现有 Markdown-as-source-of-truth 实现，回归 JSONL 单一事实源
 
+> **2026-05-19 更名**: 第四个 skill 由 `task` 更名为 `todo`(commit `dbe04a0`)。本文档正文已同步更新；历史 git log、commit message(`feat(task): ...`)以及 `docs/superpowers/plans/2026-05-19-aha-skills-redesign.md` 中实施步骤仍保留 `task` 命名,作为实现期的历史记录。
+
 ---
 
 ## 1. 背景
@@ -19,15 +21,15 @@
 - **`idea`** —— 从灵光一闪的创意，到执行落地的项目。向外的行动直觉：捕捉 → 孵化 → 决策成行
 - **`dao`** —— 道、感悟、方法论、认知。向内的领悟：记下原话 → 提炼沉淀 → 必要时深谈
 - **`tip`** —— 小妙招、小技巧、行动捷径。记录 → 复用 → 如有可能泛化推广
-- **`task`** —— 待办事项 + 时候复盘提升 + 节奏维持：任务、日志、check-in、复盘
-- **`reflect`** —— 跨 skill 的模式挖掘：在时间窗口内跨读 idea + dao + tip + task，surface 出共现的 tag、反复出现的困难、跨源主题
+- **`todo`** —— 待办事项 + 时候复盘提升 + 节奏维持：任务、日志、check-in、复盘
+- **`reflect`** —— 跨 skill 的模式挖掘：在时间窗口内跨读 idea + dao + tip + todo，surface 出共现的 tag、反复出现的困难、跨源主题
 
 ## 3. 设计公约
 
 1. **JSONL 是唯一事实源和数据源**。Agent 和人读同一份 `.jsonl`。
 2. **来自人的原始输入不可变**。`raw` 永远保留用户原话；提炼写在 `refined`，旧版进 `refinement_log`。这是认知演化的考古层。
 3. **Agent 只能通过 Python 脚本编辑 `.jsonl`**。挡住 LLM 自由编辑时的格式漂移。
-4. **不强加 workflow**。`dao` 没有状态机，`task` 不自动顺延 due——agent 提建议，用户做决定。
+4. **不强加 workflow**。`dao` 没有状态机，`todo` 不自动顺延 due——agent 提建议，用户做决定。
 
 ## 4. 设计约束
 
@@ -47,7 +49,7 @@
 │  灵光一闪 → /idea       → ~/aha/idea.jsonl           │
 │  内省感悟 → /dao        → ~/aha/dao.jsonl            │
 │  小贴士  → /tip         → ~/aha/tip.jsonl            │
-│  待办事项 → /task       → ~/aha/task.jsonl           │
+│  待办事项 → /todo       → ~/aha/todo.jsonl           │
 │  跨源复盘 → /reflect    → 跨读上述四份,无写入         │
 └──────────────────────────────────────────────────────┘
                           │
@@ -65,7 +67,7 @@
                           │
                           ▼
 ┌─────────────────────── 数据层 ────────────────────────┐
-│  ~/aha/{idea,dao,tip,task}.jsonl                     │
+│  ~/aha/{idea,dao,tip,todo}.jsonl                     │
 │  每行 = 一条记录现态;refinement_log 内嵌              │
 │  纯本地文件,无数据库无服务器                          │
 └──────────────────────────────────────────────────────┘
@@ -87,7 +89,7 @@
 ├── idea.jsonl
 ├── dao.jsonl
 ├── tip.jsonl
-└── task.jsonl
+└── todo.jsonl
 ```
 
 **路径解析**（`store.aha_home()`）：
@@ -152,7 +154,7 @@ def aha_home() -> Path:
 }
 ```
 
-**task**：
+**todo**：
 ```json
 {
   ...core,
@@ -173,9 +175,9 @@ def aha_home() -> Path:
 | 捕捉 | `raw`（每 skill 都有） |
 | 提炼 / 决策更新（idea, dao） | `refined` ← 旧版进 `refinement_log` |
 | 状态标记（idea） | `status`（free-form） |
-| 状态枚举（task） | `status` ∈ {open, done, dropped} |
-| 任务过程记录（task） | `log`（append-only） |
-| 任务复盘（task） | `reflection` |
+| 状态枚举（todo） | `status` ∈ {open, done, dropped} |
+| 任务过程记录（todo） | `log`（append-only） |
+| 任务复盘（todo） | `reflection` |
 | 跨 skill 关联 | `tags`（共享命名空间） |
 
 ### 6.5 不变量
@@ -185,8 +187,8 @@ def aha_home() -> Path:
 | `raw` 一旦写入永不修改 | store 层无任何函数修改它；测试覆盖 |
 | `refined` 修改时旧版必须入 `refinement_log` | `refine_record()` 实现 |
 | 首次设置 `refined`（旧值为 null）不入 log | `refine_record()` 检查旧值 |
-| `task.log` 只追加 | `append_log()` 仅 append |
-| `task.status == "done"` ⟹ `done_at` 非空 | `mark_done()` 同时设两字段 |
+| `todo.log` 只追加 | `append_log()` 仅 append |
+| `todo.status == "done"` ⟹ `done_at` 非空 | `mark_done()` 同时设两字段 |
 
 ### 6.6 id 生成
 
@@ -232,10 +234,10 @@ skills/
 │   ├── SKILL.md
 │   ├── scripts/tip.py          # ~80 LOC: 2 verbs
 │   └── tests/test_tip.py       # ~60 LOC
-├── task/
+├── todo/
 │   ├── SKILL.md
-│   ├── scripts/task.py         # ~150 LOC: 6 verbs
-│   └── tests/test_task.py      # ~150 LOC
+│   ├── scripts/todo.py         # ~150 LOC: 6 verbs
+│   └── tests/test_todo.py      # ~150 LOC
 └── reflect/
     └── SKILL.md                # 仅 SKILL.md,无脚本无测试
 
@@ -265,7 +267,7 @@ docs/
 ```python
 from typing import Literal, Callable
 
-Skill = Literal["idea", "dao", "tip", "task"]
+Skill = Literal["idea", "dao", "tip", "todo"]
 
 # === 路径 / 初始化 ===
 def aha_home() -> Path
@@ -288,7 +290,7 @@ def update_record(skill: Skill, id: str, mutator: Callable[[dict], dict]) -> dic
 
 # === 高层操作 ===
 def refine_record(skill: Skill, id: str, new_refined: str) -> dict
-def append_log(skill: Skill, id: str, note: str) -> dict     # task only
+def append_log(skill: Skill, id: str, note: str) -> dict     # todo only
 def mark_done(skill: Skill, id: str, reflection: str | None = None) -> dict
 def mark_dropped(skill: Skill, id: str, reflection: str | None = None) -> dict
 
@@ -390,13 +392,13 @@ dao refine <id> <new_refined>
 tip add <raw> [--tag T...]
 tip list [--tag T...] [--since DATE] [--until DATE] [--limit N] [--tsv]
 
-═══ task (6) ═══
-task add <raw> [--due DATE] [--tag T...]
-task list [--status S] [--tag T...] [--since DATE] [--until DATE] [--due-before DATE] [--limit N] [--tsv]
-task log <id> <note>
-task done <id> [--reflection R]
-task drop <id> [--reflection R]
-task set-due <id> <date>
+═══ todo (6) ═══
+todo add <raw> [--due DATE] [--tag T...]
+todo list [--status S] [--tag T...] [--since DATE] [--until DATE] [--due-before DATE] [--limit N] [--tsv]
+todo log <id> <note>
+todo done <id> [--reflection R]
+todo drop <id> [--reflection R]
+todo set-due <id> <date>
 ```
 
 ### 8.3 输出形态
@@ -433,14 +435,14 @@ id              raw                            refined                  status  
 | `tag <id> --add/--remove` | 罕见操作；用户手编或重写记录 |
 | `search <text>` | `grep` 已是 search |
 | dao `discuss` | 折叠进 `refine`——深谈 = 一次 refined 更新 |
-| `idea promote-to-task` | 跨 skill 自动转换违反公约 #4 |
-| `task pause / move-due` | `set-due` 覆盖；pause 是状态机 |
+| `idea promote-to-todo` | 跨 skill 自动转换违反公约 #4 |
+| `todo pause / move-due` | `set-due` 覆盖；pause 是状态机 |
 | `tip generalize` | 泛化 = 写新 dao，不改 tip |
 
 ### 8.5 输入校验规则
 
 - 日期：`YYYY-MM-DD`，否则 exit 1 + 提示
-- task `--status`：枚举 `open|done|dropped`，否则 exit 1
+- todo `--status`：枚举 `open|done|dropped`，否则 exit 1
 - idea `--status`：free-form 字符串，不校验
 - `--tag` 可重复给
 
@@ -462,7 +464,7 @@ skills/reflect/
 reflect 是 agent 主导的剧本：
 1. 确定时间窗口（默认 last 14 days；用户可指定）
 2. 并行调用四个 skill 的 `list --since YYYY-MM-DD`
-3. agent 在 context 里聚合：tag 频次、跨源 tag 共现、task 状态分布、各 skill 时间密度
+3. agent 在 context 里聚合：tag 频次、跨源 tag 共现、todo 状态分布、各 skill 时间密度
 4. agent 归纳 3-5 条主题，每个挂引用 id
 5. agent 给出建议清单（不执行任何动作）
 
@@ -542,7 +544,7 @@ class IdNotFound(AhaError): ...
 class CorruptRecord(AhaError): ...   # 包含 path + line_no + reason
 ```
 
-**输入校验**：argparse 的 `type=` 自定义 parser + `choices=` 枚举处理参数非法。task `--status` 用 `choices=["open","done","dropped"]`；日期参数用 `type=lambda s: datetime.date.fromisoformat(s)` 强制 `YYYY-MM-DD`。
+**输入校验**：argparse 的 `type=` 自定义 parser + `choices=` 枚举处理参数非法。todo `--status` 用 `choices=["open","done","dropped"]`；日期参数用 `type=lambda s: datetime.date.fromisoformat(s)` 强制 `YYYY-MM-DD`。
 
 **argparse 退出码统一**：argparse 默认 `error()` 退 2；为了让用户错误统一在 exit 1（§11.1），每个 `<skill>.py` 子类化 ArgumentParser 覆盖 error()：
 
@@ -666,7 +668,7 @@ reflect 的 SKILL.md 略不同——无 verbs 段，改为 "Approach" 段（见 
 skills/_lib/                    # 1413 LOC Markdown lib
 skills/idea/                    # 整个,包括 SKILL.md/scripts/tests
 skills/dao/
-skills/daily/                   # 整个(被 task 取代)
+skills/daily/                   # 整个(被 todo 取代)
 skills/reflect/                 # 重写
 scripts/                        # run_tests.py 重写
 aha-workspace/                  # 整个目录,包括 .manifest.json
@@ -741,7 +743,7 @@ docs/                           # 留壳,新 spec 已在内
 | Q4 | 脚本入口: per-skill + shared lib, LOC ≤ 1050 | §7 |
 | Q5 | 跨 skill: 仅 tags | §6.7 |
 | Q6 | 核心字段: id/raw/tags/created_at/updated_at | §6.2 |
-| Q6b | per-skill 字段(idea/dao/tip/task) | §6.3 |
+| Q6b | per-skill 字段(idea/dao/tip/todo) | §6.3 |
 | Q7 | id: 日期 + 4 hex | §6.6 |
 | Q8 | 路径: `~/aha/`, `AHA_HOME` 覆盖, lazy create | §6.1 |
 | Q8b | `Path.home()` 而非 shell `~`(跨 agent 上下文稳定) | §6.1 |
@@ -749,7 +751,7 @@ docs/                           # 留壳,新 spec 已在内
 | Q9b | list 默认 JSONL, `--tsv` 可选 | §8.3 |
 | Q9c | reflect: 仅 SKILL.md | §9 |
 | Q10 | 命名: hack → tip | 全文 |
-| Q11 | task `check_ins` → `log` | §6.3 |
+| Q11 | todo `check_ins` → `log` | §6.3 |
 
 ---
 
