@@ -4,8 +4,7 @@
 .LSOverride
 ._*
 
-# Runtime workspace produced by skills (idea inbox, etc.)
-aha-workspace/
+# Local data lives outside the repo at $HOME/aha/ (or $AHA_HOME); nothing to ignore here.
 
 # Python
 __pycache__/
