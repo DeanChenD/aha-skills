@@ -177,3 +177,31 @@ def append_record(skill: str, record: dict) -> None:
         f.write(line)
         f.flush()
         os.fsync(f.fileno())
+
+
+from typing import Callable
+
+
+def update_record(
+    skill: str, id: str, mutator: Callable[[dict], dict]
+) -> dict:
+    p = jsonl_path(skill)
+    with locked(p) as f:
+        f.seek(0)
+        raw = f.read()
+        records: list[dict] = []
+        for i, line in enumerate(raw.splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError as e:
+                raise CorruptRecord(str(p), i, str(e)) from e
+        for idx, rec in enumerate(records):
+            if rec.get("id") == id:
+                new_rec = mutator(rec)
+                new_rec["updated_at"] = now_iso()
+                records[idx] = new_rec
+                _atomic_write_lines(p, [to_jsonl_line(r) for r in records])
+                return new_rec
+        raise IdNotFound(skill, id)

@@ -213,3 +213,35 @@ def test_append_record_appends_multiple(aha_home):
     store.append_record("idea", {"id": "a"})
     store.append_record("idea", {"id": "b"})
     assert (aha_home / "idea.jsonl").read_text() == '{"id":"a"}\n{"id":"b"}\n'
+
+
+def test_update_record_applies_mutator(aha_home):
+    (aha_home / "idea.jsonl").write_text('{"id":"a","status":null}\n')
+    out = store.update_record("idea", "a", lambda r: {**r, "status": "decided"})
+    assert out["status"] == "decided"
+    line = (aha_home / "idea.jsonl").read_text().strip()
+    rec = json.loads(line)
+    assert rec["id"] == "a"
+    assert rec["status"] == "decided"
+
+
+def test_update_record_missing_raises(aha_home):
+    (aha_home / "idea.jsonl").write_text('{"id":"a"}\n')
+    with pytest.raises(store.IdNotFound):
+        store.update_record("idea", "missing", lambda r: r)
+
+
+def test_update_record_bumps_updated_at(aha_home):
+    (aha_home / "idea.jsonl").write_text(
+        '{"id":"a","updated_at":"2020-01-01T00:00:00+00:00"}\n'
+    )
+    out = store.update_record("idea", "a", lambda r: {**r, "tags": ["t"]})
+    assert out["updated_at"] != "2020-01-01T00:00:00+00:00"
+
+
+def test_update_record_preserves_other_lines(aha_home):
+    (aha_home / "idea.jsonl").write_text('{"id":"a"}\n{"id":"b"}\n{"id":"c"}\n')
+    store.update_record("idea", "b", lambda r: {**r, "status": "X"})
+    lines = (aha_home / "idea.jsonl").read_text().splitlines()
+    assert lines[0] == '{"id":"a"}'
+    assert lines[2] == '{"id":"c"}'
