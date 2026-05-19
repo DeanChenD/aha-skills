@@ -17,7 +17,7 @@ Five skills:
 3. The agent edits JSONL **only** through Python scripts — no free-form file edits.
 4. No forced workflows. The agent suggests; the user decides.
 
-See `docs/superpowers/specs/2026-05-19-aha-skills-redesign-design.md` for full design and rationale.
+See `docs/superpowers/specs/2026-05-19-aha-skills-redesign-design.md` for full design and rationale. **AI agents working in this repo: read `AGENTS.md` first** — it codifies the conventions, schema rules, and behavioral constraints that the codebase depends on.
 
 ## Layout
 
