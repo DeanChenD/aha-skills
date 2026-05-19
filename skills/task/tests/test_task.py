@@ -85,12 +85,12 @@ def test_done_unknown_id(run):
     run("done", "missing", expect_code=1)
 
 
-def test_drop_sets_status_dropped(run):
+def test_drop_does_not_set_done_at(run):
     rid = json.loads(run("add", "x").stdout)["id"]
     proc = run("drop", rid)
     rec = json.loads(proc.stdout.strip())
     assert rec["status"] == "dropped"
-    assert rec["done_at"]
+    assert rec["done_at"] is None  # done_at is reserved for status==done
 
 
 def test_drop_with_reflection(run):

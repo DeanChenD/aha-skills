@@ -13,16 +13,16 @@ TSV_COLS = ["id", "raw", "refined", "tags", "created_at"]
 
 
 def cmd_add(args) -> None:
+    ts = store.now_iso()
     rec = {
         "id": store.new_id(),
         "raw": args.raw,
         "tags": args.tag or [],
-        "created_at": store.now_iso(),
-        "updated_at": "",
+        "created_at": ts,
+        "updated_at": ts,
         "refined": None,
         "refinement_log": [],
     }
-    rec["updated_at"] = rec["created_at"]
     store.ensure_initialized(SKILL)
     store.append_record(SKILL, rec)
     print(store.to_jsonl_line(rec))

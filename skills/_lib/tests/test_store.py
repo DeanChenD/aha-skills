@@ -313,7 +313,7 @@ def test_mark_dropped_sets_status_dropped(aha_home):
     (aha_home / "task.jsonl").write_text('{"id":"a","status":"open","done_at":null}\n')
     out = store.mark_dropped("task", "a")
     assert out["status"] == "dropped"
-    assert out["done_at"]
+    assert out["done_at"] is None  # drop does not imply completion
 
 
 def test_mark_dropped_keeps_reflection_optional(aha_home):
@@ -322,6 +322,27 @@ def test_mark_dropped_keeps_reflection_optional(aha_home):
     )
     out = store.mark_dropped("task", "a")
     assert out["reflection"] is None
+
+
+@pytest.mark.parametrize(
+    "skill,initial,call",
+    [
+        ("idea", '{"id":"a","raw":"orig","status":null}\n',
+         lambda: store.update_record("idea", "a", lambda r: {**r, "status": "decided"})),
+        ("task", '{"id":"a","raw":"orig","status":"open","done_at":null,"log":[]}\n',
+         lambda: store.append_log("task", "a", "n1")),
+        ("task", '{"id":"a","raw":"orig","status":"open","done_at":null}\n',
+         lambda: store.mark_done("task", "a")),
+        ("task", '{"id":"a","raw":"orig","status":"open","done_at":null}\n',
+         lambda: store.mark_dropped("task", "a")),
+        ("task", '{"id":"a","raw":"orig","due":null}\n',
+         lambda: store.update_record("task", "a", lambda r: {**r, "due": "2026-12-31"})),
+    ],
+)
+def test_raw_survives_non_refine_mutators(aha_home, skill, initial, call):
+    (aha_home / f"{skill}.jsonl").write_text(initial)
+    out = call()
+    assert out["raw"] == "orig"
 
 
 import argparse

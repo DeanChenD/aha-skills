@@ -1,9 +1,17 @@
 """aha-skills shared store: JSONL CRUD, ids, timestamps, locking."""
 from __future__ import annotations
 
+import argparse
+import fcntl
+import json
 import os
+import secrets
+import sys
+import threading
+from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 
 Skill = Literal["idea", "dao", "tip", "task"]
 SKILLS: tuple[Skill, ...] = ("idea", "dao", "tip", "task")
@@ -24,10 +32,6 @@ def jsonl_path(skill: str) -> Path:
     if skill not in SKILLS:
         raise ValueError(f"unknown skill: {skill!r} (expected one of {SKILLS})")
     return aha_home() / f"{skill}.jsonl"
-
-
-import secrets
-from datetime import datetime
 
 
 def new_id() -> str:
@@ -65,10 +69,10 @@ def ensure_initialized(skill: str) -> None:
         p.touch()
 
 
-import json
-
-
 def read_all(skill: str) -> list[dict]:
+    # Unlocked read: writers always go through _atomic_write_lines, whose
+    # os.replace is atomic on POSIX, so a reader sees either the old file
+    # or the new file in full — never a torn write. Spec §10.2.
     p = jsonl_path(skill)
     if not p.exists():
         return []
@@ -143,10 +147,6 @@ def to_tsv_row(record: dict, columns: list[str]) -> str:
     return "\t".join(cells)
 
 
-import fcntl
-import threading
-from contextlib import contextmanager
-
 _thread_locks: dict[str, threading.Lock] = {}
 _thread_locks_guard = threading.Lock()
 
@@ -163,6 +163,9 @@ def _thread_lock_for(path: Path) -> threading.Lock:
 
 @contextmanager
 def locked(path: Path):
+    # Two-tier lock: thread-level Lock first (fcntl.flock is per-OFD on POSIX,
+    # so two threads in the same process opening the file would each get an
+    # independent flock), then fcntl for cross-process serialization.
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch(exist_ok=True)
     tlock = _thread_lock_for(path)
@@ -193,9 +196,6 @@ def append_record(skill: str, record: dict) -> None:
         f.write(line)
         f.flush()
         os.fsync(f.fileno())
-
-
-from typing import Callable
 
 
 def update_record(
@@ -248,10 +248,10 @@ def append_log(skill: str, id: str, note: str) -> dict:
     return update_record(skill, id, mutate)
 
 
-def _mark(skill: str, id: str, status: str, reflection: str | None) -> dict:
+def mark_done(skill: str, id: str, reflection: str | None = None) -> dict:
     def mutate(rec: dict) -> dict:
         out = dict(rec)
-        out["status"] = status
+        out["status"] = "done"
         out["done_at"] = now_iso()
         if reflection is not None:
             out["reflection"] = reflection
@@ -260,16 +260,15 @@ def _mark(skill: str, id: str, status: str, reflection: str | None) -> dict:
     return update_record(skill, id, mutate)
 
 
-def mark_done(skill: str, id: str, reflection: str | None = None) -> dict:
-    return _mark(skill, id, "done", reflection)
-
-
 def mark_dropped(skill: str, id: str, reflection: str | None = None) -> dict:
-    return _mark(skill, id, "dropped", reflection)
+    def mutate(rec: dict) -> dict:
+        out = dict(rec)
+        out["status"] = "dropped"
+        if reflection is not None:
+            out["reflection"] = reflection
+        return out
 
-
-import argparse
-import sys
+    return update_record(skill, id, mutate)
 
 
 class AhaArgParser(argparse.ArgumentParser):
