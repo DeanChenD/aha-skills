@@ -24,3 +24,16 @@ def jsonl_path(skill: str) -> Path:
     if skill not in SKILLS:
         raise ValueError(f"unknown skill: {skill!r} (expected one of {SKILLS})")
     return aha_home() / f"{skill}.jsonl"
+
+
+import secrets
+from datetime import datetime
+
+
+def new_id() -> str:
+    today = datetime.now().strftime("%Y-%m-%d")
+    return f"{today}-{secrets.token_hex(2)}"
+
+
+def now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
