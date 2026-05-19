@@ -34,6 +34,11 @@ def cmd_refine(args) -> None:
     print(store.to_jsonl_line(out))
 
 
+def cmd_set_status(args) -> None:
+    out = store.update_record(SKILL, args.id, lambda r: {**r, "status": args.status})
+    print(store.to_jsonl_line(out))
+
+
 def cmd_list(args) -> None:
     records = store.read_all(SKILL)
     records = store.filter_records(
@@ -76,6 +81,11 @@ def main() -> None:
     r.add_argument("id")
     r.add_argument("refined")
     r.set_defaults(fn=cmd_refine)
+
+    s = sub.add_parser("set-status", help="update free-form status")
+    s.add_argument("id")
+    s.add_argument("status")
+    s.set_defaults(fn=cmd_set_status)
 
     args = p.parse_args()
     try:

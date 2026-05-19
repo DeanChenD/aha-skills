@@ -103,3 +103,14 @@ def test_refine_archives_previous(run):
 def test_refine_unknown_id_exits_1(run):
     proc = run("refine", "missing-id", "x", expect_code=1)
     assert "not found" in proc.stderr
+
+
+def test_set_status_updates(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    proc = run("set-status", rid, "decided")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["status"] == "decided"
+
+
+def test_set_status_unknown_id_exits_1(run):
+    run("set-status", "missing-id", "decided", expect_code=1)
