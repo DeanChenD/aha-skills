@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_lib"))
 import store  # noqa: E402
 
 SKILL = "idea"
+TSV_COLS = ["id", "raw", "refined", "status", "tags", "created_at"]
 
 
 def cmd_add(args) -> None:
@@ -28,6 +29,25 @@ def cmd_add(args) -> None:
     print(store.to_jsonl_line(rec))
 
 
+def cmd_list(args) -> None:
+    records = store.read_all(SKILL)
+    records = store.filter_records(
+        records,
+        since=args.since,
+        until=args.until,
+        tags=args.tag or None,
+        status=args.status,
+        limit=args.limit,
+    )
+    if args.tsv:
+        print("\t".join(TSV_COLS))
+        for r in records:
+            print(store.to_tsv_row(r, TSV_COLS))
+    else:
+        for r in records:
+            print(store.to_jsonl_line(r))
+
+
 def main() -> None:
     p = store.AhaArgParser(prog="idea")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -37,6 +57,15 @@ def main() -> None:
     a.add_argument("--tag", action="append", default=[])
     a.add_argument("--status", default=None)
     a.set_defaults(fn=cmd_add)
+
+    l = sub.add_parser("list", help="list ideas")
+    l.add_argument("--tag", action="append", default=[])
+    l.add_argument("--status", default=None)
+    l.add_argument("--since", default=None)
+    l.add_argument("--until", default=None)
+    l.add_argument("--limit", type=int, default=None)
+    l.add_argument("--tsv", action="store_true")
+    l.set_defaults(fn=cmd_list)
 
     args = p.parse_args()
     try:

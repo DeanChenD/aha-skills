@@ -34,3 +34,47 @@ def test_add_persists_to_jsonl(run, aha_home):
     contents = (aha_home / "idea.jsonl").read_text()
     assert "persisted" in contents
     json.loads(contents.strip())
+
+
+def test_list_empty_produces_no_output(run):
+    proc = run("list")
+    assert proc.stdout == ""
+
+
+def test_list_returns_jsonl_lines(run):
+    run("add", "one")
+    run("add", "two")
+    proc = run("list")
+    lines = proc.stdout.strip().splitlines()
+    assert len(lines) == 2
+    for line in lines:
+        json.loads(line)
+
+
+def test_list_filters_by_tag(run):
+    run("add", "x-only", "--tag", "x")
+    run("add", "y-only", "--tag", "y")
+    proc = run("list", "--tag", "x")
+    assert len(proc.stdout.strip().splitlines()) == 1
+    assert "x-only" in proc.stdout
+
+
+def test_list_tsv_has_six_columns(run):
+    run("add", "raw text", "--status", "incubating", "--tag", "t1")
+    proc = run("list", "--tsv")
+    rows = proc.stdout.strip().splitlines()
+    assert len(rows) == 2
+    header = rows[0].split("\t")
+    assert header == ["id", "raw", "refined", "status", "tags", "created_at"]
+    body = rows[1].split("\t")
+    assert body[1] == "raw text"
+    assert body[3] == "incubating"
+    assert body[4] == "t1"
+
+
+def test_list_status_filter(run):
+    run("add", "open one", "--status", "incubating")
+    run("add", "decided one", "--status", "decided")
+    proc = run("list", "--status", "decided")
+    assert len(proc.stdout.strip().splitlines()) == 1
+    assert "decided one" in proc.stdout
