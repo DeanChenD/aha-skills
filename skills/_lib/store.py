@@ -250,3 +250,14 @@ def mark_done(skill: str, id: str, reflection: str | None = None) -> dict:
 
 def mark_dropped(skill: str, id: str, reflection: str | None = None) -> dict:
     return _mark(skill, id, "dropped", reflection)
+
+
+import argparse
+import sys
+
+
+class AhaArgParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:  # type: ignore[override]
+        sys.stderr.write(f"Error: {message}\n")
+        self.print_usage(sys.stderr)
+        sys.exit(1)

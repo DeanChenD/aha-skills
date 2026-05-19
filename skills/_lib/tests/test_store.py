@@ -322,3 +322,20 @@ def test_mark_dropped_keeps_reflection_optional(aha_home):
     )
     out = store.mark_dropped("task", "a")
     assert out["reflection"] is None
+
+
+import argparse
+
+
+def test_aha_argparser_exits_1_on_error(capsys):
+    p = store.AhaArgParser()
+    p.add_argument("--n", type=int)
+    with pytest.raises(SystemExit) as ei:
+        p.parse_args(["--n", "abc"])
+    assert ei.value.code == 1
+    err = capsys.readouterr().err
+    assert "Error:" in err
+
+
+def test_aha_argparser_extends_argparse():
+    assert issubclass(store.AhaArgParser, argparse.ArgumentParser)
