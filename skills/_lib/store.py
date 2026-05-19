@@ -230,3 +230,23 @@ def append_log(skill: str, id: str, note: str) -> dict:
         return out
 
     return update_record(skill, id, mutate)
+
+
+def _mark(skill: str, id: str, status: str, reflection: str | None) -> dict:
+    def mutate(rec: dict) -> dict:
+        out = dict(rec)
+        out["status"] = status
+        out["done_at"] = now_iso()
+        if reflection is not None:
+            out["reflection"] = reflection
+        return out
+
+    return update_record(skill, id, mutate)
+
+
+def mark_done(skill: str, id: str, reflection: str | None = None) -> dict:
+    return _mark(skill, id, "done", reflection)
+
+
+def mark_dropped(skill: str, id: str, reflection: str | None = None) -> dict:
+    return _mark(skill, id, "dropped", reflection)

@@ -292,3 +292,33 @@ def test_append_log_preserves_existing(aha_home):
     )
     out = store.append_log("task", "a", "n1")
     assert [e["note"] for e in out["log"]] == ["n0", "n1"]
+
+
+def test_mark_done_sets_status_and_done_at(aha_home):
+    (aha_home / "task.jsonl").write_text('{"id":"a","status":"open","done_at":null}\n')
+    out = store.mark_done("task", "a")
+    assert out["status"] == "done"
+    assert out["done_at"]
+
+
+def test_mark_done_with_reflection(aha_home):
+    (aha_home / "task.jsonl").write_text(
+        '{"id":"a","status":"open","done_at":null,"reflection":null}\n'
+    )
+    out = store.mark_done("task", "a", reflection="went well")
+    assert out["reflection"] == "went well"
+
+
+def test_mark_dropped_sets_status_dropped(aha_home):
+    (aha_home / "task.jsonl").write_text('{"id":"a","status":"open","done_at":null}\n')
+    out = store.mark_dropped("task", "a")
+    assert out["status"] == "dropped"
+    assert out["done_at"]
+
+
+def test_mark_dropped_keeps_reflection_optional(aha_home):
+    (aha_home / "task.jsonl").write_text(
+        '{"id":"a","status":"open","done_at":null,"reflection":null}\n'
+    )
+    out = store.mark_dropped("task", "a")
+    assert out["reflection"] is None
