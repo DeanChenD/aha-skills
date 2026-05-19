@@ -22,6 +22,7 @@ def cmd_add(args) -> None:
         "updated_at": ts,
         "refined": None,
         "refinement_log": [],
+        "log": [],
     }
     store.ensure_initialized(SKILL)
     store.append_record(SKILL, rec)
@@ -30,6 +31,14 @@ def cmd_add(args) -> None:
 
 def cmd_refine(args) -> None:
     out = store.refine_record(SKILL, args.id, args.refined)
+    print(store.to_jsonl_line(out))
+
+
+def cmd_log(args) -> None:
+    if not args.note.strip():
+        print("Error: note must not be empty", file=sys.stderr)
+        sys.exit(1)
+    out = store.append_log(SKILL, args.id, args.note)
     print(store.to_jsonl_line(out))
 
 
@@ -71,6 +80,11 @@ def main() -> None:
     r.add_argument("id")
     r.add_argument("refined")
     r.set_defaults(fn=cmd_refine)
+
+    g = sub.add_parser("log", help="append a discussion note")
+    g.add_argument("id")
+    g.add_argument("note")
+    g.set_defaults(fn=cmd_log)
 
     args = p.parse_args()
     try:
