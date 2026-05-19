@@ -144,19 +144,35 @@ def to_tsv_row(record: dict, columns: list[str]) -> str:
 
 
 import fcntl
+import threading
 from contextlib import contextmanager
+
+_thread_locks: dict[str, threading.Lock] = {}
+_thread_locks_guard = threading.Lock()
+
+
+def _thread_lock_for(path: Path) -> threading.Lock:
+    key = str(path)
+    with _thread_locks_guard:
+        lock = _thread_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _thread_locks[key] = lock
+        return lock
 
 
 @contextmanager
 def locked(path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch(exist_ok=True)
-    with open(path, "r+") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        try:
-            yield f
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    tlock = _thread_lock_for(path)
+    with tlock:
+        with open(path, "r+") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                yield f
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def _atomic_write_lines(path: Path, lines: list[str]) -> None:

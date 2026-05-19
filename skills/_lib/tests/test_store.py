@@ -339,3 +339,41 @@ def test_aha_argparser_exits_1_on_error(capsys):
 
 def test_aha_argparser_extends_argparse():
     assert issubclass(store.AhaArgParser, argparse.ArgumentParser)
+
+
+import threading
+
+
+def test_concurrent_appends_no_loss(aha_home):
+    N = 20
+    barrier = threading.Barrier(N)
+
+    def worker(i):
+        barrier.wait()
+        store.append_record("idea", {"id": f"id-{i}", "raw": f"r{i}"})
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(N)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    rows = store.read_all("idea")
+    assert len(rows) == N
+    assert {r["id"] for r in rows} == {f"id-{i}" for i in range(N)}
+
+
+def test_concurrent_updates_no_overwrite(aha_home):
+    (aha_home / "task.jsonl").write_text('{"id":"a","log":[]}\n')
+    N = 10
+    barrier = threading.Barrier(N)
+
+    def worker(i):
+        barrier.wait()
+        store.append_log("task", "a", f"note-{i}")
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(N)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    rec = store.find_by_id("task", "a")
+    assert len(rec["log"]) == N
+    assert {e["note"] for e in rec["log"]} == {f"note-{i}" for i in range(N)}
