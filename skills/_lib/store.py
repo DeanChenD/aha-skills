@@ -205,3 +205,17 @@ def update_record(
                 _atomic_write_lines(p, [to_jsonl_line(r) for r in records])
                 return new_rec
         raise IdNotFound(skill, id)
+
+
+def refine_record(skill: str, id: str, new_refined: str) -> dict:
+    def mutate(rec: dict) -> dict:
+        out = dict(rec)
+        log = list(out.get("refinement_log") or [])
+        prev = out.get("refined")
+        if prev is not None:
+            log.append({"at": now_iso(), "prev_refined": prev})
+        out["refined"] = new_refined
+        out["refinement_log"] = log
+        return out
+
+    return update_record(skill, id, mutate)

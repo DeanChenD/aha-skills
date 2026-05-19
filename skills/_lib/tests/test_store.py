@@ -246,3 +246,32 @@ def test_update_record_preserves_other_lines(aha_home):
     lines = (aha_home / "idea.jsonl").read_text().splitlines()
     assert lines[0] == '{"id":"a"}'
     assert lines[2] == '{"id":"c"}'
+
+
+def test_refine_first_time_no_log_entry(aha_home):
+    (aha_home / "idea.jsonl").write_text(
+        '{"id":"a","raw":"orig","refined":null,"refinement_log":[]}\n'
+    )
+    out = store.refine_record("idea", "a", "v1")
+    assert out["refined"] == "v1"
+    assert out["refinement_log"] == []
+    assert out["raw"] == "orig"
+
+
+def test_refine_archives_previous(aha_home):
+    (aha_home / "idea.jsonl").write_text(
+        '{"id":"a","raw":"orig","refined":"v1","refinement_log":[]}\n'
+    )
+    out = store.refine_record("idea", "a", "v2")
+    assert out["refined"] == "v2"
+    assert len(out["refinement_log"]) == 1
+    assert out["refinement_log"][0]["prev_refined"] == "v1"
+    assert "at" in out["refinement_log"][0]
+
+
+def test_refine_does_not_mutate_raw(aha_home):
+    (aha_home / "idea.jsonl").write_text(
+        '{"id":"a","raw":"orig","refined":null,"refinement_log":[]}\n'
+    )
+    out = store.refine_record("idea", "a", "v1")
+    assert out["raw"] == "orig"
