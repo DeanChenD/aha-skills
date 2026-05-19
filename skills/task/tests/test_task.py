@@ -98,3 +98,19 @@ def test_drop_with_reflection(run):
     proc = run("drop", rid, "--reflection", "no longer needed")
     rec = json.loads(proc.stdout.strip())
     assert rec["reflection"] == "no longer needed"
+
+
+def test_set_due_updates_field(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    proc = run("set-due", rid, "2026-07-15")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["due"] == "2026-07-15"
+
+
+def test_set_due_invalid_date(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    run("set-due", rid, "not-a-date", expect_code=1)
+
+
+def test_set_due_unknown_id(run):
+    run("set-due", "missing", "2026-07-15", expect_code=1)

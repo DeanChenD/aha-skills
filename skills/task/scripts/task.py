@@ -53,6 +53,11 @@ def cmd_drop(args) -> None:
     print(store.to_jsonl_line(out))
 
 
+def cmd_set_due(args) -> None:
+    out = store.update_record(SKILL, args.id, lambda r: {**r, "due": args.due})
+    print(store.to_jsonl_line(out))
+
+
 def cmd_list(args) -> None:
     records = store.filter_records(
         store.read_all(SKILL),
@@ -107,6 +112,11 @@ def main() -> None:
     dr.add_argument("id")
     dr.add_argument("--reflection", default=None)
     dr.set_defaults(fn=cmd_drop)
+
+    sd = sub.add_parser("set-due", help="update due date")
+    sd.add_argument("id")
+    sd.add_argument("due", type=_iso_date)
+    sd.set_defaults(fn=cmd_set_due)
 
     args = p.parse_args()
     try:
