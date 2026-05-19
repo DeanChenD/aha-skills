@@ -51,7 +51,8 @@ def test_list_due_before_filters(run):
     run("add", "a", "--due", "2026-05-25")
     run("add", "b", "--due", "2026-06-10")
     proc = run("list", "--due-before", "2026-06-01")
-    assert "a" in proc.stdout and "b" not in proc.stdout
+    raws = [json.loads(l)["raw"] for l in proc.stdout.strip().splitlines()]
+    assert raws == ["a"]
 
 
 def test_log_appends(run):
