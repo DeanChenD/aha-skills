@@ -56,7 +56,7 @@
 |---|---|
 | `raw` 不可改写 | 任何 update path 必须保留首版 `raw` |
 | `refined` 可覆盖,旧值入 `refinement_log[]` | `store.refine_record()` 已封装 |
-| `log[]` 仅追加,不重写不删除 | `store.append_log()`(目前仅 `todo` 用)|
+| `log[]` 仅追加,不重写不删除 | `store.append_log()`,idea / dao / todo 均可用 |
 | `status` 是系统中**唯一**枚举,值 `open` / `done` / `dropped`(仅 `todo`)| 不要发明 `paused` / `blocked` / `archived`,把状态描述写进 `log` 笔记 |
 | `done_at` **只**在 `status=="done"` 时设置 | `mark_dropped` 不设 `done_at`(字段名要诚实)|
 | 其他 skill 的 `status`(如 `idea.status`)是自由文本,**advisory**,不是状态机 | 不要为它加 transition 校验 |
@@ -67,7 +67,7 @@
 
 - **不要**自动 `idea → todo` / `tip → dao` / 任何方向的转换。建议放进对话,等用户开口。
 - **`reflect` 严格只读**。绝不调 `add` / `refine` / `log` / `done` / `drop` / `set-due` / `set-status`。
-- **"深聊" / 后续讨论 / 多次思考的产物 = 一次 `refine`**,不要发明 "follow-up" / "thread" / "discussion" 之类的新 verb。
+- **多次讨论的过程用 `log` 追加;多次讨论后形成的精炼表述走一次 `refine`**(旧 refined 入 `refinement_log[]`)。不要发明 "follow-up" / "thread" / "discussion" / "session" / "conversation" 之类的新 verb 或字段。
 - **关联通过 tag**。需要把两条记录"挂起来"时,给它们打同一个 tag,不要写 `linked_to: <id>`。
 
 ---
