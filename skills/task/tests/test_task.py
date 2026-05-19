@@ -63,3 +63,23 @@ def test_log_appends(run):
 
 def test_log_unknown_id(run):
     run("log", "missing", "n", expect_code=1)
+
+
+def test_done_sets_status_and_done_at(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    proc = run("done", rid)
+    rec = json.loads(proc.stdout.strip())
+    assert rec["status"] == "done"
+    assert rec["done_at"]
+    assert rec["reflection"] is None
+
+
+def test_done_with_reflection(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    proc = run("done", rid, "--reflection", "smooth")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["reflection"] == "smooth"
+
+
+def test_done_unknown_id(run):
+    run("done", "missing", expect_code=1)

@@ -43,6 +43,11 @@ def cmd_log(args) -> None:
     print(store.to_jsonl_line(out))
 
 
+def cmd_done(args) -> None:
+    out = store.mark_done(SKILL, args.id, args.reflection)
+    print(store.to_jsonl_line(out))
+
+
 def cmd_list(args) -> None:
     records = store.filter_records(
         store.read_all(SKILL),
@@ -87,6 +92,11 @@ def main() -> None:
     g.add_argument("id")
     g.add_argument("note")
     g.set_defaults(fn=cmd_log)
+
+    d = sub.add_parser("done", help="mark task done")
+    d.add_argument("id")
+    d.add_argument("--reflection", default=None)
+    d.set_defaults(fn=cmd_done)
 
     args = p.parse_args()
     try:
