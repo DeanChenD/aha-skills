@@ -18,6 +18,7 @@ def test_add_emits_full_record(run, aha_home):
     assert rec["status"] is None
     assert rec["refined"] is None
     assert rec["refinement_log"] == []
+    assert rec["log"] == []
     assert rec["id"]
     assert rec["created_at"]
     assert rec["updated_at"] == rec["created_at"]
@@ -114,3 +115,49 @@ def test_set_status_updates(run):
 
 def test_set_status_unknown_id_exits_1(run):
     run("set-status", "missing-id", "decided", expect_code=1)
+
+
+def test_log_appends_note(run):
+    rid = json.loads(run("add", "discuss me").stdout)["id"]
+    proc = run("log", rid, "本轮:澄清目标用户\n焦点:替代方案\n下一步:问现在怎么解决")
+    rec = json.loads(proc.stdout.strip())
+    assert len(rec["log"]) == 1
+    entry = rec["log"][0]
+    assert entry["note"] == "本轮:澄清目标用户\n焦点:替代方案\n下一步:问现在怎么解决"
+    assert entry["at"]
+
+
+def test_log_multiple_appends_in_order(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    run("log", rid, "first")
+    run("log", rid, "second")
+    proc = run("log", rid, "third")
+    rec = json.loads(proc.stdout.strip())
+    notes = [e["note"] for e in rec["log"]]
+    assert notes == ["first", "second", "third"]
+    ats = [e["at"] for e in rec["log"]]
+    assert ats == sorted(ats)
+
+
+def test_log_unknown_id_exits_1(run):
+    proc = run("log", "missing-id", "note", expect_code=1)
+    assert "not found" in proc.stderr
+
+
+def test_log_empty_note_exits_1(run):
+    rid = json.loads(run("add", "x").stdout)["id"]
+    proc = run("log", rid, "", expect_code=1)
+    assert "empty" in proc.stderr.lower() or "must not be empty" in proc.stderr.lower()
+
+
+def test_log_preserves_other_fields(run):
+    rid = json.loads(run("add", "rough", "--tag", "t1").stdout)["id"]
+    run("refine", rid, "polished")
+    proc = run("log", rid, "trail note")
+    rec = json.loads(proc.stdout.strip())
+    assert rec["raw"] == "rough"
+    assert rec["refined"] == "polished"
+    assert rec["refinement_log"] == []
+    assert rec["tags"] == ["t1"]
+    assert len(rec["log"]) == 1
+    assert rec["log"][0]["note"] == "trail note"
