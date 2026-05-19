@@ -219,3 +219,14 @@ def refine_record(skill: str, id: str, new_refined: str) -> dict:
         return out
 
     return update_record(skill, id, mutate)
+
+
+def append_log(skill: str, id: str, note: str) -> dict:
+    def mutate(rec: dict) -> dict:
+        out = dict(rec)
+        log = list(out.get("log") or [])
+        log.append({"at": now_iso(), "note": note})
+        out["log"] = log
+        return out
+
+    return update_record(skill, id, mutate)

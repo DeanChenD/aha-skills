@@ -275,3 +275,20 @@ def test_refine_does_not_mutate_raw(aha_home):
     )
     out = store.refine_record("idea", "a", "v1")
     assert out["raw"] == "orig"
+
+
+def test_append_log_appends(aha_home):
+    (aha_home / "task.jsonl").write_text(
+        '{"id":"a","log":[]}\n'
+    )
+    out = store.append_log("task", "a", "first note")
+    assert out["log"][-1]["note"] == "first note"
+    assert "at" in out["log"][-1]
+
+
+def test_append_log_preserves_existing(aha_home):
+    (aha_home / "task.jsonl").write_text(
+        '{"id":"a","log":[{"at":"2026-01-01T00:00:00+00:00","note":"n0"}]}\n'
+    )
+    out = store.append_log("task", "a", "n1")
+    assert [e["note"] for e in out["log"]] == ["n0", "n1"]
