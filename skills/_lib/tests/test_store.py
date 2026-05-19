@@ -109,3 +109,48 @@ def test_find_by_id_hit(aha_home):
 def test_find_by_id_miss_returns_none(aha_home):
     (aha_home / "idea.jsonl").write_text('{"id":"a"}\n')
     assert store.find_by_id("idea", "z") is None
+
+
+SAMPLE = [
+    {"id": "a", "tags": ["x"], "status": "open",
+     "created_at": "2026-05-10T12:00:00+08:00", "due": "2026-05-20"},
+    {"id": "b", "tags": ["x", "y"], "status": "done",
+     "created_at": "2026-05-15T12:00:00+08:00", "due": "2026-05-12"},
+    {"id": "c", "tags": ["y"], "status": "open",
+     "created_at": "2026-05-18T12:00:00+08:00", "due": None},
+]
+
+
+def test_filter_by_tag_any():
+    out = store.filter_records(SAMPLE, tags=["x"])
+    assert [r["id"] for r in out] == ["a", "b"]
+
+
+def test_filter_by_multiple_tags_is_or():
+    out = store.filter_records(SAMPLE, tags=["x", "y"])
+    assert [r["id"] for r in out] == ["a", "b", "c"]
+
+
+def test_filter_by_since():
+    out = store.filter_records(SAMPLE, since="2026-05-15")
+    assert [r["id"] for r in out] == ["b", "c"]
+
+
+def test_filter_by_until_inclusive():
+    out = store.filter_records(SAMPLE, until="2026-05-15")
+    assert [r["id"] for r in out] == ["a", "b"]
+
+
+def test_filter_by_status():
+    out = store.filter_records(SAMPLE, status="open")
+    assert [r["id"] for r in out] == ["a", "c"]
+
+
+def test_filter_by_due_before_skips_null():
+    out = store.filter_records(SAMPLE, due_before="2026-05-19")
+    assert [r["id"] for r in out] == ["a", "b"]
+
+
+def test_filter_limit_keeps_first_n():
+    out = store.filter_records(SAMPLE, limit=2)
+    assert [r["id"] for r in out] == ["a", "b"]

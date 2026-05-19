@@ -90,3 +90,30 @@ def find_by_id(skill: str, id: str) -> dict | None:
         if rec.get("id") == id:
             return rec
     return None
+
+
+def filter_records(
+    records: list[dict],
+    *,
+    since: str | None = None,
+    until: str | None = None,
+    tags: list[str] | None = None,
+    status: str | None = None,
+    due_before: str | None = None,
+    limit: int | None = None,
+) -> list[dict]:
+    out = list(records)
+    if since:
+        out = [r for r in out if r.get("created_at", "") >= since]
+    if until:
+        out = [r for r in out if r.get("created_at", "")[:10] <= until]
+    if tags:
+        wanted = set(tags)
+        out = [r for r in out if wanted & set(r.get("tags") or [])]
+    if status:
+        out = [r for r in out if r.get("status") == status]
+    if due_before:
+        out = [r for r in out if r.get("due") and r["due"] < due_before]
+    if limit is not None:
+        out = out[:limit]
+    return out
