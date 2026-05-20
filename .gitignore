@@ -6,6 +6,7 @@
 
 # Runtime workspace produced by skills (idea inbox, etc.)
 aha-workspace/
+aha-data/
 
 # Python
 __pycache__/
