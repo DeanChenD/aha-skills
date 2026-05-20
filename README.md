@@ -1,6 +1,6 @@
 # aha-skills
 
-一组轻量级 AI agent skill，用于把易逝的认知瞬间留下并持续生长。适配 Claude Code 等支持 SKILL.md 的 host。
+一组轻量级 AI agent skill，用于把易逝的认知瞬间留下并持续生长。
 
 ---
 
@@ -65,10 +65,3 @@ aha-skills/
 ```
 
 绑定家目录消除了 cwd 碎片化——认知记录跨项目共享。
-
-## 安装
-
-把 `skills/` 目录（或其中任意子目录）链接/复制到 host 的 skill 加载路径：
-
-- **Claude Code**：`ln -s "$(pwd)/skills/idea" ~/.claude/skills/idea`（每个 skill 独立）
-- 无外部依赖，无 Python，无构建步骤

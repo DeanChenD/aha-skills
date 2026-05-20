@@ -4,9 +4,6 @@
 .LSOverride
 ._*
 
-# Runtime workspace produced by skills (idea inbox, etc.)
-aha-workspace/
-aha-data/
 
 # Python
 __pycache__/
@@ -47,6 +44,3 @@ ENV/
 *.tmp
 .cache/
 
-# Local audit / backlog notes (private; not committed)
-docs/audit-*.md
-docs/backlog-*.md
