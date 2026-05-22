@@ -10,6 +10,7 @@
 
 - **idea** — 从灵光一闪的创意想法，到执行落地的实际项目，向外的行动直觉：捕捉 → 孵化 → 决策成行
 - **dao** — "道"、"感悟"、"方法论"、"认知"，向内的领悟：记下原话 → 提炼沉淀 → 必要时深谈
+- **insight** — 对外部现象的解读：记下解读 → agent 给视角 → 必要时深谈
 - **tip** — "小妙招"、"小技巧"、"邪修方法"，行动上总结的捷径，高效的方法：记录 → 复用 → 如有可能泛化推广
 - **todo** — 从待办事项，到时候复盘提升，维持节奏：任务（带 due / 状态 / 推迟记录）
 
@@ -35,10 +36,13 @@
 |---|---|
 | 一个外部行动方向，需要孵化、研究、决策 / "我有个想法" | `idea` |
 | 一个内省式领悟、一句话顿悟 / "我悟到了" | `dao` |
+| 对外部现象的解读 / "记录一个洞察" / "记录一个观察" | `insight` |
 | 一个绑定实践域的高效方法 / "小妙招" / "这招好用" | `tip` |
 | 有 deadline 的待办 / "今天要做" / "推迟到" / "完成了" | `todo` |
 
 **tip vs dao 判定**：能不能剥离任何具体实践/工具/域还完整说出来？能 → dao；不能 → tip。
+
+**insight vs dao 判定**：解读对象是**外部现象** → `insight`；解读对象是**自己/价值观** → `dao`。
 
 ## 仓库结构
 
@@ -48,6 +52,7 @@ aha-skills/
 └── skills/
     ├── idea/SKILL.md
     ├── dao/SKILL.md
+    ├── insight/SKILL.md
     ├── tip/SKILL.md
     └── todo/SKILL.md
 ```
@@ -58,10 +63,11 @@ aha-skills/
 
 ```
 ~/aha-data/
-├── idea/   idea-YYYYMMDD-HHMMSS-<slug>.md
-├── dao/    dao-YYYYMMDD-HHMMSS-<slug>.md
-├── tip/    tip-YYYYMMDD-HHMMSS-<slug>.md
-└── todo/   todo-YYYYMMDD-HHMMSS-<slug>.md
+├── idea/    idea-YYYYMMDD-HHMMSS-<slug>.md
+├── dao/     dao-YYYYMMDD-HHMMSS-<slug>.md
+├── insight/ insight-YYYYMMDD-HHMMSS-<slug>.md
+├── tip/     tip-YYYYMMDD-HHMMSS-<slug>.md
+└── todo/    todo-YYYYMMDD-HHMMSS-<slug>.md
 ```
 
 绑定家目录消除了 cwd 碎片化——认知记录跨项目共享。
