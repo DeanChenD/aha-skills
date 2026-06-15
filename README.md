@@ -12,6 +12,7 @@
 - **dao** — "道"、"感悟"、"方法论"、"认知"，向内的领悟：记下原话 → 提炼沉淀 → 必要时深谈
 - **insight** — 对外部现象的解读：记下解读 → agent 给视角 → 必要时深谈
 - **tip** — "小妙招"、"小技巧"、"邪修方法"，行动上总结的捷径，高效的方法：记录 → 复用 → 如有可能泛化推广
+- **note** — 日常杂项的低摩擦备忘：事实、信息、链接、临时上下文、经历片段，记录 → 补充 → 找回
 - **keep** — "我要保持/坚持"的习惯与仪式，向自我的行为承诺：记录 → 修订
 - **todo** — 从待办事项，到时候复盘提升，维持节奏：任务（带 due / 状态 / 推迟记录）
 
@@ -39,6 +40,7 @@
 | 一个内省式领悟、一句话顿悟 / "我悟到了" | `dao` |
 | 对外部现象的解读 / "记录一个洞察" / "记录一个观察" | `insight` |
 | 一个绑定实践域的高效方法 / "小妙招" / "这招好用" | `tip` |
+| 明确说"记一笔" / "备忘一下" / "随手记"，且不是其他类型的日常杂项 | `note` |
 | 一个我决定要保持/坚持的习惯或仪式 / "记下这个仪式" / "我要养成 X" | `keep` |
 | 有 deadline 的待办 / "今天要做" / "推迟到" / "完成了" | `todo` |
 
@@ -58,6 +60,7 @@ aha-skills/
     ├── dao/SKILL.md
     ├── insight/SKILL.md
     ├── tip/SKILL.md
+    ├── note/SKILL.md
     ├── keep/SKILL.md
     └── todo/SKILL.md
 ```
@@ -72,6 +75,7 @@ aha-skills/
 ├── dao/     dao-YYYYMMDD-HHMMSS-<slug>.md
 ├── insight/ insight-YYYYMMDD-HHMMSS-<slug>.md
 ├── tip/     tip-YYYYMMDD-HHMMSS-<slug>.md
+├── note/    note-YYYYMMDD-HHMMSS-<slug>.md
 ├── keep/    keep-YYYYMMDD-HHMMSS-<slug>.md
 └── todo/    todo-YYYYMMDD-HHMMSS-<slug>.md
 ```
